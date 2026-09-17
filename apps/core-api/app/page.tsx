@@ -1,0 +1,2 @@
+import Link from 'next/link';
+export default function CoreHome() { return <main className="core-home"><span className="core-mark">N</span><p>NADAV CORE</p><h1>Infraestructura gastronómica,<br/>sin imponer el diseño.</h1><p>API headless para catálogo, pedidos, pagos, impresión y administración.</p><div><Link href="/admin">Abrir administración</Link><a href="/api/v1/catalog?restaurant=demo-restaurant">Ver API de catálogo</a></div></main>; }

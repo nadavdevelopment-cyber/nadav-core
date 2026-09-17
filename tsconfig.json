@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["dom", "dom.iterable", "es2022"],
+    "allowJs": false,
+    "allowImportingTsExtensions": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "incremental": true,
+    "plugins": [{"name": "next"}],
+    "baseUrl": ".",
+    "paths": {
+      "@nadav/core": ["packages/core/src/index.ts"],
+      "@nadav/core/*": ["packages/core/src/*"],
+      "@nadav/adapters": ["packages/adapters/src/index.ts"],
+      "@nadav/adapters/*": ["packages/adapters/src/*"],
+      "@nadav/sdk": ["packages/sdk/src/index.ts"],
+      "@nadav/admin-ui": ["packages/admin-ui/src/index.ts"]
+    }
+  },
+  "include": ["next-env.d.ts", "apps/**/*.ts", "apps/**/*.tsx", "packages/**/*.ts", "packages/**/*.tsx", "starters/**/*.ts", "starters/**/*.tsx", "tests/**/*.ts", "restaurant.config.ts"],
+  "exclude": ["node_modules", ".next"]
+}

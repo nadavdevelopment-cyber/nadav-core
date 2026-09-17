@@ -1,0 +1,45 @@
+node_modules/
+.next/
+dist/
+coverage/
+.env
+.env.local
+.env.*.local
+*.log
+*.tsbuildinfo
+.DS_Store
+nadav-core.zip
+
+# Local secrets
+.env
+.env.local
+**/.env
+**/.env.local
+
+# Dependencies / builds
+node_modules/
+**/node_modules/
+.next/
+**/.next/
+.turbo/
+coverage/
+
+# macOS
+.DS_Store
+
+# Secrets
+.env
+.env.local
+**/.env
+**/.env.local
+
+# Builds / dependencies
+node_modules/
+**/node_modules/
+.next/
+**/.next/
+.turbo/
+coverage/
+
+# macOS
+.DS_Store
