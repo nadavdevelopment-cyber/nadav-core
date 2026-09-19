@@ -9,11 +9,13 @@ const money = (value: number) => new Intl.NumberFormat('es-AR', {style: 'currenc
 export function CartDrawer({lines, onClose, onQuantity, onRemove, onCheckout}: {lines: CartLine[]; onClose: () => void; onQuantity: (key: string, quantity: number) => void; onRemove: (key: string) => void; onCheckout: () => void}) {
   const dialogRef = useDialogFocus<HTMLElement>(onClose);
   const subtotal = lines.reduce((sum, line) => sum + unitPrice(line) * line.quantity, 0);
+  const itemCount = lines.reduce((sum, line) => sum + line.quantity, 0);
 
   return <div className="drawer-layer" role="presentation" onMouseDown={event => { if (event.currentTarget === event.target) onClose(); }}>
     <aside className="cart-drawer" role="dialog" aria-modal="true" aria-labelledby="cart-title" ref={dialogRef} tabIndex={-1}>
+      <span className="sheet-handle" aria-hidden="true"/>
       <header className="cart-drawer__header">
-        <div><span className="eyebrow">TU PEDIDO</span><h2 id="cart-title">La bolsa</h2></div>
+        <div><span className="eyebrow">TU PEDIDO · {itemCount} {itemCount === 1 ? 'PRODUCTO' : 'PRODUCTOS'}</span><h2 id="cart-title">La bolsa</h2></div>
         <button className="dialog-close" type="button" onClick={onClose} aria-label="Cerrar carrito">×</button>
       </header>
       {lines.length ? <>
@@ -38,7 +40,7 @@ export function CartDrawer({lines, onClose, onQuantity, onRemove, onCheckout}: {
         <footer className="cart-drawer__footer">
           <div className="cart-total"><span>Subtotal estimado</span><strong>{money(subtotal)}</strong></div>
           <p>El envío y los descuentos se calculan antes de confirmar.</p>
-          <button className="primary-button primary-button--wide" type="button" onClick={onCheckout}>CONTINUAR</button>
+          <button className="primary-button primary-button--wide cart-checkout-button" type="button" onClick={onCheckout}><span>CONTINUAR</span><strong>{money(subtotal)}</strong></button>
           <button className="secondary-button secondary-button--wide" type="button" onClick={onClose}>SEGUIR ELIGIENDO</button>
         </footer>
       </> : <div className="empty-cart">

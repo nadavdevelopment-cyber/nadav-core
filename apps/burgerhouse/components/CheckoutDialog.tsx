@@ -43,7 +43,7 @@ export function CheckoutDialog({menu, lines, busy, error, onBack, onClose, onSub
         <div><span className="eyebrow">ÚLTIMO PASO</span><h2 id="checkout-title">¿Cómo te lo damos?</h2></div>
         <button className="dialog-close" type="button" onClick={onClose} disabled={busy} aria-label="Cerrar checkout">×</button>
       </header>
-      <form className="checkout-form" onSubmit={submit}>
+      <form className="checkout-form" id="burgerhouse-checkout" onSubmit={submit}>
         <div className="checkout-form__fields">
           <fieldset className="choice-section">
             <legend>1. Elegí la modalidad</legend>
@@ -83,10 +83,14 @@ export function CheckoutDialog({menu, lines, busy, error, onBack, onClose, onSub
           <p>El total definitivo, envío y promociones los valida BurgerHouse al confirmar.</p>
           {error ? <p className="form-error" role="alert">{error}</p> : null}
           {!payments.length ? <p className="form-error" role="alert">No hay medios de pago disponibles en este momento.</p> : null}
-          <button className="primary-button primary-button--wide" type="submit" disabled={busy || !lines.length || !payments.length}>{busy ? 'CONFIRMANDO…' : 'CONFIRMAR PEDIDO'}</button>
+          <button className="primary-button primary-button--wide checkout-submit--desktop" type="submit" disabled={busy || !lines.length || !payments.length}>{busy ? 'CONFIRMANDO…' : 'CONFIRMAR PEDIDO'}</button>
           <small className="secure-copy">Revisamos precios y disponibilidad antes de crear tu pedido.</small>
         </aside>
       </form>
+      <div className="checkout-mobile-bar">
+        <span><small>SUBTOTAL ESTIMADO</small><strong>{money(subtotal)}</strong></span>
+        <button className="primary-button" type="submit" form="burgerhouse-checkout" disabled={busy || !lines.length || !payments.length}>{busy ? 'CONFIRMANDO…' : 'CONFIRMAR'} <span aria-hidden="true">→</span></button>
+      </div>
     </section>
   </div>;
 }

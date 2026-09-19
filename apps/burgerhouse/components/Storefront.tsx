@@ -9,9 +9,10 @@ import {CheckoutDialog} from './CheckoutDialog';
 import {OrderSuccess} from './OrderSuccess';
 import {ProductCard} from './ProductCard';
 import {ProductDialog} from './ProductDialog';
-import type {CartLine, StorefrontConfig} from './storefront-types';
+import {unitPrice, type CartLine, type StorefrontConfig} from './storefront-types';
 
 type CompletedOrder = {order: Order; paymentUrl?: string};
+const money = (value: number) => new Intl.NumberFormat('es-AR', {style: 'currency', currency: 'ARS', maximumFractionDigits: 0}).format(value);
 
 function cartKey(product: Product, selections: CartSelection[], notes: string) {
   const options = selections.map(selection => `${selection.groupId}:${selection.optionId}`).sort().join('|');
@@ -29,6 +30,8 @@ export function Storefront({config}: {config: StorefrontConfig}) {
   const [checkoutError, setCheckoutError] = useState('');
   const [busy, setBusy] = useState(false);
   const [completed, setCompleted] = useState<CompletedOrder | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [cartFeedback, setCartFeedback] = useState('');
   const submission = useRef<{fingerprint: string; key: string} | null>(null);
 
   useEffect(() => {
@@ -51,6 +54,13 @@ export function Storefront({config}: {config: StorefrontConfig}) {
   const closeCart = useCallback(() => setCartOpen(false), []);
   const closeCheckout = useCallback(() => { if (!busy) setCheckoutOpen(false); }, [busy]);
   const itemCount = cart.reduce((sum, line) => sum + line.quantity, 0);
+  const cartSubtotal = cart.reduce((sum, line) => sum + unitPrice(line) * line.quantity, 0);
+
+  useEffect(() => {
+    if (!cartFeedback) return;
+    const timeout = window.setTimeout(() => setCartFeedback(''), 2200);
+    return () => window.clearTimeout(timeout);
+  }, [cartFeedback]);
 
   function add(product: Product, quantity: number, selections: CartSelection[], notes: string) {
     const key = cartKey(product, selections, notes);
@@ -61,6 +71,7 @@ export function Storefront({config}: {config: StorefrontConfig}) {
         : [...lines, {key, product, quantity, selections, notes}];
     });
     submission.current = null;
+    setCartFeedback(`${quantity} ${quantity === 1 ? 'producto agregado' : 'productos agregados'} al pedido`);
     setSelectedProduct(null);
     setCartOpen(true);
   }
@@ -95,9 +106,9 @@ export function Storefront({config}: {config: StorefrontConfig}) {
     }
   }
 
-  if (!menu) return <main className="loading-screen">
+  if (!menu) return <main className={`loading-screen${loadError ? ' loading-screen--error' : ''}`} aria-live="polite" aria-busy={!loadError}>
     <BrandMark/>
-    {loadError ? <><h1>El menú se tomó un descanso.</h1><p>{loadError}</p><button type="button" className="primary-button" onClick={() => location.reload()}>REINTENTAR</button></> : <><div className="loading-burger" aria-hidden="true"><i/><i/><i/></div><p>Cargando cosas ricas…</p></>}
+    {loadError ? <><span className="loading-screen__status">NO PUDIMOS CARGAR</span><h1>La plancha sigue encendida.</h1><p>{loadError}</p><button type="button" className="primary-button" onClick={() => location.reload()}>VOLVER A INTENTAR</button></> : <><div className="loading-burger" aria-hidden="true"><i/><i/><i/></div><p>Prendiendo la plancha…</p></>}
   </main>;
 
   return <div className="site" style={{'--brand-red': config.presentation.accent, '--cream': config.presentation.background} as React.CSSProperties}>
@@ -113,7 +124,20 @@ export function Storefront({config}: {config: StorefrontConfig}) {
           <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 4h2l2.1 10.1a2 2 0 0 0 2 1.6h7.8a2 2 0 0 0 2-1.6L20 8H7M9.5 20a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0Zm8 0a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0Z" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8"/></svg>
           <span>Carrito</span><b>{itemCount}</b>
         </button>
+        <button className="mobile-menu-button" type="button" aria-expanded={mobileMenuOpen} aria-controls="mobile-navigation" onClick={() => setMobileMenuOpen(open => !open)}>
+          <span className="sr-only">{mobileMenuOpen ? 'Cerrar navegación' : 'Abrir navegación'}</span>
+          <i/><i/>
+        </button>
       </div>
+      {mobileMenuOpen ? <>
+        <button className="mobile-nav-backdrop" type="button" aria-label="Cerrar navegación" onClick={() => setMobileMenuOpen(false)}/>
+        <nav className="mobile-nav" id="mobile-navigation" aria-label="Navegación móvil">
+          <a href="#menu" onClick={() => setMobileMenuOpen(false)}><span>01</span> Menú</a>
+          <a href="#nosotros" onClick={() => setMobileMenuOpen(false)}><span>02</span> Nosotros</a>
+          <a href="#horarios" onClick={() => setMobileMenuOpen(false)}><span>03</span> Horarios</a>
+          <a className="mobile-nav__order" href="#menu" onClick={() => setMobileMenuOpen(false)}>PEDIR AHORA <span aria-hidden="true">↗</span></a>
+        </nav>
+      </> : null}
     </header>
 
     <main id="top">
@@ -182,8 +206,12 @@ export function Storefront({config}: {config: StorefrontConfig}) {
       <div className="site-footer__bottom"><span>© {new Date().getFullYear()} BURGERHOUSE</span><span>{config.presentation.slogan}</span></div>
     </footer>
 
-    {itemCount > 0 && !overlayOpen ? <button className="mobile-cart-bar" type="button" onClick={() => setCartOpen(true)}><span>VER PEDIDO</span><b>{itemCount}</b></button> : null}
-    <div className="sr-only" aria-live="polite">{itemCount ? `${itemCount} productos en el carrito` : 'Carrito vacío'}</div>
+    {itemCount > 0 && !overlayOpen ? <button className="mobile-cart-bar" type="button" onClick={() => setCartOpen(true)}>
+      <span className="mobile-cart-bar__count">{itemCount}</span>
+      <span className="mobile-cart-bar__copy"><strong>VER PEDIDO</strong><small>{itemCount === 1 ? '1 producto' : `${itemCount} productos`}</small></span>
+      <b>{money(cartSubtotal)} <span aria-hidden="true">→</span></b>
+    </button> : null}
+    <div className="sr-only" aria-live="polite">{cartFeedback || (itemCount ? `${itemCount} productos en el carrito` : 'Carrito vacío')}</div>
 
     {selectedProduct ? <ProductDialog product={selectedProduct} onClose={closeProduct} onAdd={add}/> : null}
     {cartOpen ? <CartDrawer lines={cart} onClose={closeCart} onQuantity={updateQuantity} onRemove={removeLine} onCheckout={() => { setCartOpen(false); setCheckoutError(''); setCheckoutOpen(true); }}/> : null}

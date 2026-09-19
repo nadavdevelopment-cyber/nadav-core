@@ -41,6 +41,7 @@ export function ProductDialog({product, onClose, onAdd}: {product: Product; onCl
 
   return <div className="dialog-layer" role="presentation" onMouseDown={event => { if (event.currentTarget === event.target) onClose(); }}>
     <section className="product-dialog" role="dialog" aria-modal="true" aria-labelledby="product-dialog-title" ref={dialogRef} tabIndex={-1}>
+      <span className="sheet-handle" aria-hidden="true"/>
       <button className="dialog-close" type="button" onClick={onClose} aria-label="Cerrar detalle">×</button>
       <div className="product-dialog__image"><ProductVisual product={product}/></div>
       <div className="product-dialog__content">
@@ -65,7 +66,7 @@ export function ProductDialog({product, onClose, onAdd}: {product: Product; onCl
             <output aria-live="polite">{quantity}</output>
             <button type="button" onClick={() => setQuantity(value => Math.min(99, value + 1))} aria-label="Sumar uno">+</button>
           </div>
-          <button className="primary-button primary-button--wide" type="button" onClick={add} disabled={!valid}>AGREGAR · {money(unit * quantity)}</button>
+          <button className="primary-button primary-button--wide" type="button" onClick={add} disabled={!valid}><span>AGREGAR AL PEDIDO</span><strong>{money(unit * quantity)}</strong></button>
         </div>
       </div>
     </section>

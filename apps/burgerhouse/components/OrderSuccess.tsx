@@ -10,6 +10,7 @@ export function OrderSuccess({order, paymentUrl, onDone}: {order: Order; payment
   const dialogRef = useDialogFocus<HTMLElement>(onDone);
   return <div className="dialog-layer dialog-layer--success">
     <section className="order-success" role="dialog" aria-modal="true" aria-labelledby="success-title" ref={dialogRef} tabIndex={-1}>
+      <span className="sheet-handle" aria-hidden="true"/>
       <div className="success-stamp" aria-hidden="true">✓</div>
       <span className="eyebrow">PEDIDO RECIBIDO</span>
       <h2 id="success-title">Listo, ya está en marcha.</h2>

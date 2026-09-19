@@ -28,9 +28,9 @@ export function ProductCard({product, onOpen, priority}: {product: Product; onOp
       </div>
       <p>{product.description}</p>
       <div className="product-card__footer">
-        <span>{product.stock !== null && available ? `${product.stock} disponibles` : available ? 'Hecha al momento' : 'Sin stock'}</span>
+        <span className="product-card__availability"><i aria-hidden="true"/>{product.stock !== null && available ? `${product.stock} disponibles` : available ? 'Hecha al momento' : 'Sin stock'}</span>
         <button type="button" className="round-add" onClick={() => onOpen(product)} disabled={!available} aria-label={`Agregar ${product.name}`}>
-          <span aria-hidden="true">+</span>
+          <span aria-hidden="true">+</span><small>{available ? 'AGREGAR' : 'AGOTADA'}</small>
         </button>
       </div>
     </div>
