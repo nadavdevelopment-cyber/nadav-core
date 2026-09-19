@@ -6,3 +6,4 @@ export * from './pricing.ts';
 export * from './orders.ts';
 export * from './repository.ts';
 export * from './catalog.ts';
+export * from './commerce.ts';

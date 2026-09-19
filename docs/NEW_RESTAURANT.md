@@ -22,4 +22,14 @@
 
 10. Verificá catálogo → cotización → pedido → pago → webhook → impresión antes de producción.
 
+### Vera Studio / NADAV Commerce
+
+Para una tienda Commerce ejecutá también `supabase/migrations/0002_commerce_schema.sql`. La migración crea las tablas Commerce aisladas por `restaurant_id`, Storage reutilizable y la semilla editorial de Vera Studio; no copia datos de Food. Creá primero el usuario en Supabase Auth y asignalo con:
+
+```bash
+VERA_ADMIN_EMAIL=admin@tu-dominio.com node scripts/assign-commerce-admin.mjs
+```
+
+El usuario ingresa en `/admin/login` con las credenciales de Supabase Auth. Los roles son `owner`, `admin` y `editor`; sólo `owner`/`admin` pueden editar categorías y contenido, mientras `editor` puede mantener productos y pedidos. La API firma una cookie HttpOnly vinculada al usuario y al tenant, y cada query vuelve a filtrar por `restaurant_id`.
+
 El storefront puede ser reemplazado por un diseño desde cero. Solo debe conservar el contrato del SDK o de `/api/v1`.

@@ -6,9 +6,11 @@ import type {CartLine, CheckoutData} from './types';
 
 const initial: CheckoutData = {name: '', email: '', phone: '', fulfillment: 'delivery', address: '', city: '', payment: 'transfer'};
 
-export function CheckoutDialog({lines, onClose, onComplete}: {lines: CartLine[]; onClose: () => void; onComplete: (data: CheckoutData) => void}) {
+export function CheckoutDialog({lines, onClose, onComplete}: {lines: CartLine[]; onClose: () => void; onComplete: (data: CheckoutData) => Promise<void> | void}) {
   const [data, setData] = useState(initial);
   const [step, setStep] = useState<1 | 2>(1);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
   const subtotal = lines.reduce((sum, line) => sum + line.product.price * line.quantity, 0);
   const shipping = data.fulfillment === 'delivery' ? 4500 : 0;
   const set = <K extends keyof CheckoutData>(key: K, value: CheckoutData[K]) => setData(current => ({...current, [key]: value}));
@@ -22,6 +24,7 @@ export function CheckoutDialog({lines, onClose, onComplete}: {lines: CartLine[];
   }, [onClose]);
 
   const contactValid = Boolean(data.name && data.email && data.phone && (data.fulfillment === 'pickup' || (data.address && data.city)));
+  const confirm = async () => { setSaving(true); setError(''); try { await onComplete(data); } catch (reason) { setError(reason instanceof Error ? reason.message : 'No pudimos crear el pedido.'); setSaving(false); } };
   return <div className="dialog-backdrop checkout-backdrop">
     <section className="checkout" role="dialog" aria-modal="true" aria-labelledby="checkout-title">
       <header><div><p className="eyebrow">Paso {step} de 2</p><h2 id="checkout-title">Finalizar compra</h2></div><button className="close-button" type="button" onClick={onClose} aria-label="Cerrar checkout">×</button></header>
@@ -34,7 +37,7 @@ export function CheckoutDialog({lines, onClose, onComplete}: {lines: CartLine[];
         </div>
         <aside className="order-summary"><h3>Tu pedido</h3>{lines.map(line => <div className="summary-line" key={line.key}><span>{line.quantity} × {line.product.name}<small>{line.color} · {line.size}</small></span><strong>{money(line.product.price * line.quantity)}</strong></div>)}<div className="summary-total"><p><span>Subtotal</span><strong>{money(subtotal)}</strong></p><p><span>Envío</span><strong>{shipping ? money(shipping) : 'Sin cargo'}</strong></p><p><span>Total</span><strong>{money(subtotal + shipping)}</strong></p></div></aside>
       </div>
-      <footer>{step === 2 && <button className="text-button" type="button" onClick={() => setStep(1)}>← Volver</button>}<button className="primary-button" type="button" disabled={step === 1 && !contactValid} onClick={() => step === 1 ? setStep(2) : onComplete(data)}>{step === 1 ? 'Continuar al pago' : 'Confirmar pedido'}</button></footer>
+      <footer>{error && <p className="form-error" role="alert">{error}</p>}{step === 2 && <button className="text-button" type="button" onClick={() => setStep(1)} disabled={saving}>← Volver</button>}<button className="primary-button" type="button" disabled={saving || (step === 1 && !contactValid)} onClick={() => step === 1 ? setStep(2) : confirm()}>{saving ? 'Guardando pedido…' : step === 1 ? 'Continuar al pago' : 'Confirmar pedido'}</button></footer>
     </section>
   </div>;
 }

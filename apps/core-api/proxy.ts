@@ -15,6 +15,7 @@ function applyCors(response: NextResponse, origin: string | null) {
   }
 
   response.headers.set('Vary', 'Origin');
+  response.headers.set('Access-Control-Allow-Credentials', 'true');
   response.headers.set(
     'Access-Control-Allow-Methods',
     'GET,POST,PUT,PATCH,DELETE,OPTIONS',

@@ -2,11 +2,11 @@
 
 import Image from 'next/image';
 import {useEffect, useState} from 'react';
-import type {Product, Size} from '../lib/catalog';
-import {money} from '../lib/catalog';
+import type {Product} from '../lib/catalog';
+import {money, variantFor} from '../lib/catalog';
 
-export function ProductDialog({product, onClose, onAdd}: {product: Product; onClose: () => void; onAdd: (product: Product, size: Size, color: string, quantity: number) => void}) {
-  const [size, setSize] = useState<Size | null>(product.sizes.length === 1 ? product.sizes[0] : null);
+export function ProductDialog({product, onClose, onAdd}: {product: Product; onClose: () => void; onAdd: (product: Product, variantId: string, size: string, color: string, quantity: number) => void}) {
+  const [size, setSize] = useState<string | null>(product.sizes.length === 1 ? product.sizes[0] : null);
   const [color, setColor] = useState(product.colors[0]?.name ?? 'Único');
   const [quantity, setQuantity] = useState(1);
   const [details, setDetails] = useState<'description' | 'care' | 'shipping'>('description');
@@ -37,11 +37,11 @@ export function ProductDialog({product, onClose, onAdd}: {product: Product; onCl
         <fieldset className="option-group">
           <legend className="sr-only">Talle</legend>
           <div className="size-heading"><span>Talle</span><a href="/guia-de-talles">Guía de talles</a></div>
-          <div className="size-options">{product.sizes.map(option => <button type="button" key={option} className={size === option ? 'selected' : ''} onClick={() => setSize(option)}>{option}</button>)}</div>
+          <div className="size-options">{product.sizes.map(option => { const available = Boolean(variantFor(product, color, option)); return <button type="button" key={option} disabled={!available} className={size === option ? 'selected' : ''} onClick={() => setSize(option)}>{option}</button>; })}</div>
         </fieldset>
         <div className="product-actions">
           <div className="quantity" aria-label="Cantidad"><button type="button" onClick={() => setQuantity(value => Math.max(1, value - 1))} aria-label="Restar">−</button><span>{quantity}</span><button type="button" onClick={() => setQuantity(value => value + 1)} aria-label="Sumar">+</button></div>
-          <button className="primary-button" type="button" disabled={!size} onClick={() => size && onAdd(product, size, color, quantity)}>{size ? 'Agregar al carrito' : 'Elegí un talle'}</button>
+          <button className="primary-button" type="button" disabled={!size || !variantFor(product, color, size)} onClick={() => { const variant = size && variantFor(product, color, size); if (variant && size) onAdd(product, variant.id, size, color, quantity); }}>{size ? 'Agregar al carrito' : 'Elegí un talle'}</button>
         </div>
         <div className="detail-tabs" role="tablist" aria-label="Información del producto">
           <button type="button" className={details === 'description' ? 'active' : ''} onClick={() => setDetails('description')}>Detalle</button>
