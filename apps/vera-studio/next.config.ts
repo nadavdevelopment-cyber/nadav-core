@@ -7,3 +7,5 @@ const config: NextConfig = {
 };
 
 export default config;
+
+// Vercel deployment sync
