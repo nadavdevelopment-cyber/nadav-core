@@ -12,6 +12,12 @@ function badgeFor(product: Product) {
   return null;
 }
 
+function availabilityLabel(product: Product, available: boolean) {
+  if (!available) return 'Sin stock';
+  if (product.categoryId === 'cat-drinks') return product.stock === null ? 'Disponible' : `${product.stock} disponibles`;
+  return 'Hecha al momento';
+}
+
 export function ProductCard({product, onOpen, priority}: {product: Product; onOpen: (product: Product) => void; priority?: boolean}) {
   const badge = badgeFor(product);
   const price = product.promotionalPrice ?? product.price;
@@ -28,7 +34,7 @@ export function ProductCard({product, onOpen, priority}: {product: Product; onOp
       </div>
       <p>{product.description}</p>
       <div className="product-card__footer">
-        <span className="product-card__availability"><i aria-hidden="true"/>{product.stock !== null && available ? `${product.stock} disponibles` : available ? 'Hecha al momento' : 'Sin stock'}</span>
+        <span className="product-card__availability"><i aria-hidden="true"/>{availabilityLabel(product, available)}</span>
         <button type="button" className="round-add" onClick={() => onOpen(product)} disabled={!available} aria-label={`Agregar ${product.name}`}>
           <span aria-hidden="true">+</span><small>{available ? 'AGREGAR' : 'AGOTADA'}</small>
         </button>

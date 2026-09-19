@@ -7,6 +7,12 @@ import {useDialogFocus} from './useDialogFocus';
 
 const money = (value: number) => new Intl.NumberFormat('es-AR', {style: 'currency', currency: 'ARS', maximumFractionDigits: 0}).format(value);
 
+function availabilityLabel(product: Product) {
+  if (!product.available || product.stock === 0) return 'SIN STOCK';
+  if (product.categoryId === 'cat-drinks') return product.stock === null ? 'DISPONIBLE' : `${product.stock} DISPONIBLES`;
+  return 'HECHA AL MOMENTO';
+}
+
 export function ProductDialog({product, onClose, onAdd}: {product: Product; onClose: () => void; onAdd: (product: Product, quantity: number, selections: CartSelection[], notes: string) => void}) {
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState('');
@@ -18,6 +24,7 @@ export function ProductDialog({product, onClose, onAdd}: {product: Product; onCl
     const count = selected[group.id]?.length ?? 0;
     return count >= group.min && count <= group.max;
   });
+  const isDrink = product.categoryId === 'cat-drinks';
   const unit = useMemo(() => {
     const extras = product.modifierGroups.reduce((sum, group) => sum + (selected[group.id] ?? []).reduce((groupSum, optionId) => groupSum + (group.options.find(option => option.id === optionId)?.price ?? 0), 0), 0);
     return (product.promotionalPrice ?? product.price) + extras;
@@ -43,9 +50,9 @@ export function ProductDialog({product, onClose, onAdd}: {product: Product; onCl
     <section className="product-dialog" role="dialog" aria-modal="true" aria-labelledby="product-dialog-title" ref={dialogRef} tabIndex={-1}>
       <span className="sheet-handle" aria-hidden="true"/>
       <button className="dialog-close" type="button" onClick={onClose} aria-label="Cerrar detalle">×</button>
-      <div className="product-dialog__image"><ProductVisual product={product}/></div>
+      <div className={`product-dialog__image${isDrink ? ' product-dialog__image--drink' : ''}`}><ProductVisual product={product}/></div>
       <div className="product-dialog__content">
-        <span className="eyebrow">HECHA AL MOMENTO</span>
+        <span className="eyebrow">{availabilityLabel(product)}</span>
         <h2 id="product-dialog-title">{product.name}</h2>
         <p className="product-dialog__description">{product.description}</p>
         {product.modifierGroups.map(group => <fieldset className="modifier-group" key={group.id}>

@@ -21,7 +21,7 @@ export const demoCatalog: Catalog = {
       promotionalPrice: null,
       image: '/images/burger-sandwich.webp',
       available: true,
-      stock: 30,
+      stock: null,
       modifierGroups: []
     },
     {
@@ -33,7 +33,7 @@ export const demoCatalog: Catalog = {
       promotionalPrice: null,
       image: '/images/doble-smash.webp',
       available: true,
-      stock: 30,
+      stock: null,
       modifierGroups: []
     },
     {
@@ -45,7 +45,7 @@ export const demoCatalog: Catalog = {
       promotionalPrice: null,
       image: '/images/bacon-cheddar.webp',
       available: true,
-      stock: 30,
+      stock: null,
       modifierGroups: []
     },
     {
@@ -57,7 +57,7 @@ export const demoCatalog: Catalog = {
       promotionalPrice: null,
       image: '/images/morgade.webp',
       available: true,
-      stock: null,
+      stock: 30,
       modifierGroups: []
     },
     {
@@ -69,7 +69,7 @@ export const demoCatalog: Catalog = {
       promotionalPrice: null,
       image: '/images/sprite.webp',
       available: true,
-      stock: null,
+      stock: 30,
       modifierGroups: []
     },
     {
@@ -81,7 +81,7 @@ export const demoCatalog: Catalog = {
       promotionalPrice: null,
       image: '/images/andes-ipa.webp',
       available: true,
-      stock: null,
+      stock: 30,
       modifierGroups: []
     }
   ],
