@@ -544,3 +544,404 @@ textarea {min-height: 76px; resize: vertical; padding: 12px}.notes-field textare
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {scroll-behavior: auto!important; animation-duration: .01ms!important; animation-iteration-count: 1!important; transition-duration: .01ms!important}
 }
+
+
+/* BURGERHOUSE HERO PREMIUM ONLY */
+
+/* Hero CTAs — premium pills */
+.hero__actions .primary-button,
+.hero__actions .secondary-button {
+  min-height: 56px;
+  padding-inline: 27px;
+  border-radius: 999px;
+  font-size: 11px;
+  letter-spacing: .14em;
+  box-shadow: 4px 5px 0 var(--charcoal);
+  transition:
+    transform .22s cubic-bezier(.2,.75,.2,1),
+    box-shadow .22s ease,
+    background .22s ease,
+    color .22s ease;
+}
+
+.hero__actions .primary-button {
+  background: var(--brand-red);
+  box-shadow:
+    4px 5px 0 var(--charcoal),
+    inset 0 1px 0 rgba(255,255,255,.2);
+}
+
+.hero__actions .primary-button:hover:not(:disabled) {
+  transform: translateY(-3px);
+  box-shadow:
+    4px 8px 0 var(--charcoal),
+    inset 0 1px 0 rgba(255,255,255,.2);
+}
+
+.hero__actions .secondary-button {
+  background: var(--cream-light);
+  color: var(--charcoal);
+}
+
+.hero__actions .secondary-button:hover:not(:disabled) {
+  transform: translateY(-3px);
+  background: var(--mustard);
+  color: var(--charcoal);
+  box-shadow: 4px 8px 0 var(--charcoal);
+}
+
+.hero__actions .primary-button:active:not(:disabled),
+.hero__actions .secondary-button:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: 2px 2px 0 var(--charcoal);
+}
+
+.hero__actions .primary-button span {
+  display: grid;
+  place-items: center;
+  width: 23px;
+  height: 23px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.16);
+  font-size: 15px;
+  line-height: 1;
+}
+
+/* Vintage promotional seals */
+.hero-sticker {
+  width: 118px;
+  height: 118px;
+  border: 2px solid var(--charcoal);
+  border-radius: 50%;
+  background: var(--mustard);
+  box-shadow:
+    5px 6px 0 var(--charcoal),
+    inset 0 0 0 5px rgba(242,228,200,.38),
+    inset 0 0 0 7px var(--mustard);
+  isolation: isolate;
+}
+
+.hero-sticker::before {
+  content: "";
+  position: absolute;
+  inset: 11px;
+  z-index: -1;
+  border: 1px dashed rgba(35,31,27,.55);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.hero-sticker::after {
+  position: absolute;
+  color: var(--red-dark);
+  font-family: var(--serif);
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.hero-sticker--top::after {
+  content: "✦";
+  top: 12px;
+  right: 17px;
+}
+
+/* Bottom sticker becomes a vintage ticket */
+.hero-sticker--bottom {
+  width: 142px;
+  height: 78px;
+  padding-right: 17px;
+  border-radius: 8px;
+  background: var(--cream-light);
+  transform: rotate(-10deg);
+  font-size: 14px;
+  box-shadow: 5px 6px 0 var(--charcoal);
+}
+
+.hero-sticker--bottom::before {
+  inset: 7px;
+  border: 1px dashed var(--brand-red);
+  border-radius: 4px;
+}
+
+.hero-sticker--bottom::after {
+  content: "★";
+  top: 9px;
+  right: 11px;
+  color: var(--brand-red);
+  font-size: 13px;
+}
+
+.hero-sticker--bottom b {
+  font-size: 20px;
+}
+
+/* Mobile tuning */
+@media (max-width: 620px) {
+  .hero__actions .primary-button,
+  .hero__actions .secondary-button {
+    border-radius: 999px;
+  }
+
+  .hero-sticker {
+    width: 88px;
+    height: 88px;
+    font-size: 13px;
+  }
+
+  .hero-sticker b {
+    font-size: 18px;
+  }
+
+  .hero-sticker--bottom {
+    width: 108px;
+    height: 62px;
+    padding-right: 13px;
+    font-size: 11px;
+  }
+
+  .hero-sticker--bottom b {
+    font-size: 15px;
+  }
+}
+
+@media (max-width: 390px) {
+  .hero-sticker {
+    width: 74px;
+    height: 74px;
+  }
+
+  .hero-sticker--bottom {
+    width: 96px;
+    height: 56px;
+    padding-right: 10px;
+    font-size: 10px;
+  }
+
+  .hero-sticker--bottom b {
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 330px) {
+  .hero-sticker {
+    width: 64px;
+    height: 64px;
+  }
+
+  .hero-sticker--bottom {
+    width: 84px;
+    height: 50px;
+    padding-right: 8px;
+    font-size: 9px;
+  }
+
+  .hero-sticker--bottom b {
+    font-size: 12px;
+  }
+}
+
+
+/* BURGERHOUSE GLOBAL ROUND UI */
+
+/* Botones globales */
+button,
+.primary-button,
+.secondary-button,
+.cta-button,
+button[type="submit"],
+button[type="button"] {
+  border-radius: 999px !important;
+}
+
+/* Botones principales / secundarios */
+.primary-button,
+button[type="submit"] {
+  min-height: 48px;
+  padding-inline: 22px;
+}
+
+.secondary-button,
+button[type="button"] {
+  min-height: 48px;
+  padding-inline: 22px;
+}
+
+/* Inputs / selects / textareas */
+input,
+select,
+textarea {
+  border-radius: 18px !important;
+  padding-inline: 14px;
+}
+
+/* Campos más grandes */
+textarea {
+  min-height: 110px;
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+
+/* Si hay wrappers visuales de campos */
+.field input,
+.field select,
+.field textarea,
+.notes-field textarea,
+.checkout-form input,
+.checkout-form select,
+.checkout-form textarea {
+  border-radius: 18px !important;
+}
+
+/* Controles de cantidad / mini botones */
+.quantity-control,
+.quantity-stepper,
+.counter,
+.stepper {
+  border-radius: 999px !important;
+  overflow: hidden;
+}
+
+.quantity-control button,
+.quantity-stepper button,
+.counter button,
+.stepper button {
+  border-radius: 0 !important;
+  min-width: 38px;
+}
+
+/* Botones del carrito / CTA inferiores */
+.cart-button,
+.cart-footer button,
+.checkout-footer button,
+.drawer-footer button {
+  border-radius: 999px !important;
+}
+
+/* Cierre de modales */
+.modal-close,
+.dialog-close,
+button[aria-label="Cerrar"],
+button[aria-label="Close"] {
+  border-radius: 999px !important;
+}
+
+/* Opciones clickeables del checkout: retiro / delivery / pagos */
+.checkout-option,
+.payment-option,
+.delivery-option,
+.method-card,
+.choice-card,
+.option-card,
+label.option-card,
+label.payment-option,
+label.delivery-option {
+  border-radius: 20px !important;
+  overflow: hidden;
+}
+
+/* Cards de producto y diálogo un poco más suaves */
+.product-card,
+.product-dialog,
+.cart-drawer,
+.checkout-drawer,
+.dialog-panel,
+.modal-panel {
+  border-radius: 20px;
+}
+
+/* Mobile */
+@media (max-width: 620px) {
+  input,
+  select,
+  textarea {
+    border-radius: 16px !important;
+  }
+
+  .checkout-option,
+  .payment-option,
+  .delivery-option,
+  .method-card,
+  .choice-card,
+  .option-card {
+    border-radius: 18px !important;
+  }
+
+  .product-card,
+  .product-dialog,
+  .cart-drawer,
+  .checkout-drawer,
+  .dialog-panel,
+  .modal-panel {
+    border-radius: 18px;
+  }
+}
+
+/* Center checkout CTA */
+.cart-checkout-button{
+  justify-content:center !important;
+  text-align:center;
+}
+
+.cart-checkout-button span{
+  width:100%;
+  text-align:center;
+}
+
+/* Restore original menu card geometry */
+.product-card{
+  border-radius:0 !important;
+}
+
+.product-card__visual,
+.product-visual,
+.product-visual img{
+  border-radius:0 !important;
+}
+
+/* Restore original menu card geometry */
+.product-card{
+  border-radius:0 !important;
+}
+
+.product-card__visual,
+.product-visual,
+.product-visual img{
+  border-radius:0 !important;
+}
+
+/* Product images are visual buttons, not pill CTAs */
+.product-card,
+.product-card__visual,
+.product-card__visual .product-visual,
+.product-card__visual img {
+  border-radius: 0 !important;
+}
+
+.product-card__visual {
+  min-height: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+.product-card__visual .product-visual {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Menu product visuals must remain perfectly square */
+button.product-card__visual[type="button"] {
+  border-radius: 0 !important;
+  overflow: hidden !important;
+}
+
+button.product-card__visual[type="button"] .product-visual,
+button.product-card__visual[type="button"] .product-visual img {
+  border-radius: 0 !important;
+}
+
+.product-card {
+  border-radius: 0 !important;
+  overflow: visible !important;
+}

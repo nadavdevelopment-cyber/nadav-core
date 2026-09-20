@@ -15,7 +15,7 @@ export function CartDrawer({lines, onClose, onQuantity, onRemove, onCheckout}: {
     <aside className="cart-drawer" role="dialog" aria-modal="true" aria-labelledby="cart-title" ref={dialogRef} tabIndex={-1}>
       <span className="sheet-handle" aria-hidden="true"/>
       <header className="cart-drawer__header">
-        <div><span className="eyebrow">TU PEDIDO · {itemCount} {itemCount === 1 ? 'PRODUCTO' : 'PRODUCTOS'}</span><h2 id="cart-title">La bolsa</h2></div>
+        <div><span className="eyebrow">TU PEDIDO · {itemCount} {itemCount === 1 ? 'PRODUCTO' : 'PRODUCTOS'}</span><h2 id="cart-title">Tu pedido</h2></div>
         <button className="dialog-close" type="button" onClick={onClose} aria-label="Cerrar carrito">×</button>
       </header>
       {lines.length ? <>
@@ -40,7 +40,7 @@ export function CartDrawer({lines, onClose, onQuantity, onRemove, onCheckout}: {
         <footer className="cart-drawer__footer">
           <div className="cart-total"><span>Subtotal estimado</span><strong>{money(subtotal)}</strong></div>
           <p>El envío y los descuentos se calculan antes de confirmar.</p>
-          <button className="primary-button primary-button--wide cart-checkout-button" type="button" onClick={onCheckout}><span>CONTINUAR</span><strong>{money(subtotal)}</strong></button>
+          <button className="primary-button primary-button--wide cart-checkout-button" type="button" onClick={onCheckout}><span>CONTINUAR</span></button>
           <button className="secondary-button secondary-button--wide" type="button" onClick={onClose}>SEGUIR ELIGIENDO</button>
         </footer>
       </> : <div className="empty-cart">
