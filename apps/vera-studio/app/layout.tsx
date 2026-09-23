@@ -1,6 +1,7 @@
 import type {Metadata, Viewport} from 'next';
 import type {ReactNode} from 'react';
 import './styles.css';
+import './admin-redesign.css';
 
 export const metadata: Metadata = {
   title: {default: 'Vera Studio — Indumentaria femenina', template: '%s · Vera Studio'},
