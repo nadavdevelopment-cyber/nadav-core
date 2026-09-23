@@ -3,7 +3,7 @@ import {commerceDashboard, commerceStoreBySlug, errorResponse, requireCommerceAd
 export async function GET(request: Request) {
   try {
     const store = await commerceStoreBySlug(new URL(request.url).searchParams.get('store') ?? '');
-    requireCommerceAdmin(request, store.id);
+    await requireCommerceAdmin(request, store.id);
     return Response.json({dashboard: await commerceDashboard(store.id)});
   } catch (error) { return errorResponse(error); }
 }

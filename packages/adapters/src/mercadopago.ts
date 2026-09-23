@@ -116,7 +116,7 @@ export async function fetchMercadoPagoPayment(restaurantId: string, paymentId: s
 export async function reconcileMercadoPagoPayment(restaurantId: string, order: Order, payment: Payment) {
   const intent = await supabase<{merchant_id: number; preference_id: string}[]>(`core_payment_intents?restaurant_id=eq.${filterValue(restaurantId)}&order_id=eq.${filterValue(order.id)}&select=merchant_id,preference_id`);
   const expected = intent[0];
-  if (!expected || payment.collector_id !== expected.merchant_id || payment.currency_id !== 'ARS' || payment.external_reference !== paymentReference(restaurantId, order.id) || payment.transaction_amount !== order.total || payment.preference_id && payment.preference_id !== expected.preference_id) throw new CoreError('PAYMENT_MISMATCH', 'Payment does not match order.', 422);
+  if (!expected || payment.collector_id !== expected.merchant_id || payment.currency_id !== 'ARS' || payment.external_reference !== paymentReference(restaurantId, order.id) || payment.transaction_amount !== order.total || payment.preference_id !== expected.preference_id) throw new CoreError('PAYMENT_MISMATCH', 'Payment does not match order.', 422);
   return rpc<string>('core_reconcile_payment', {p_restaurant: restaurantId, p_order: order.id, p_payment: payment.id, p_status: payment.status, p_amount: payment.transaction_amount, p_external: payment.external_reference});
 }
 

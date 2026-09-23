@@ -19,5 +19,5 @@ export type CheckoutData = {
   fulfillment: 'delivery' | 'pickup';
   address: string;
   city: string;
-  payment: 'transfer' | 'card';
+  payment: 'transfer';
 };

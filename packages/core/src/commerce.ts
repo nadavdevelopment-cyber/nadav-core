@@ -5,6 +5,7 @@ import {isUuid} from './ids.ts';
 export type CommerceRole = 'owner' | 'admin' | 'editor';
 export type CommerceOrderStatus = 'new' | 'confirmed' | 'packing' | 'shipped' | 'delivered' | 'cancelled';
 export type CommercePaymentMethod = 'transfer' | 'card';
+export type CommercePaymentStatus = 'pending' | 'approved' | 'rejected' | 'refunded';
 export type CommerceFulfillment = 'delivery' | 'pickup';
 export type CommerceCategory = {id: string; slug: string; name: string; position: number; active: boolean};
 export type CommerceVariant = {id: string; sku: string | null; color: string; colorValue: string | null; size: string; stock: number | null; active: boolean};
@@ -16,7 +17,7 @@ export type CommerceCartItemInput = {productId: string; variantId: string; quant
 export type CommerceCheckoutInput = {items: CommerceCartItemInput[]; customer: {name: string; email: string; phone?: string}; fulfillment: CommerceFulfillment; address?: string; city?: string; paymentMethod: CommercePaymentMethod};
 export type CommerceOrderItem = {productId: string; variantId: string; name: string; image: string | null; color: string; size: string; unitPrice: number; quantity: number; lineTotal: number};
 export type CommerceQuote = {items: CommerceOrderItem[]; subtotal: number; deliveryFee: number; total: number; currency: 'ARS'};
-export type CommerceOrder = CommerceQuote & {id: string; restaurantId: string; number: number; idempotencyKey: string; customer: CommerceCheckoutInput['customer']; fulfillment: CommerceFulfillment; address: string; city: string; paymentMethod: CommercePaymentMethod; paymentStatus: 'pending' | 'approved' | 'rejected' | 'refunded'; status: CommerceOrderStatus; createdAt: string};
+export type CommerceOrder = CommerceQuote & {id: string; restaurantId: string; number: number; idempotencyKey: string; customer: CommerceCheckoutInput['customer']; fulfillment: CommerceFulfillment; address: string; city: string; paymentMethod: CommercePaymentMethod; paymentStatus: CommercePaymentStatus; status: CommerceOrderStatus; createdAt: string};
 export type CommerceCatalogResponse = {store: {slug: string; name: string}; catalog: CommerceCatalog};
 
 const text = (value: unknown, max: number) => typeof value === 'string' && value.trim().length > 0 && value.trim().length <= max;
@@ -26,7 +27,8 @@ export function validateCommerceCheckout(input: CommerceCheckoutInput) {
   if (!input || !Array.isArray(input.items) || input.items.length < 1 || input.items.length > 40) throw invalid('El carrito no es válido.');
   if (!text(input.customer?.name, 120) || !text(input.customer?.email, 160) || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.customer.email.trim())) throw invalid('Completá tus datos de contacto.');
   if (input.customer.phone !== undefined && !text(input.customer.phone, 40)) throw invalid('El teléfono no es válido.');
-  if (!['delivery', 'pickup'].includes(input.fulfillment) || !['transfer', 'card'].includes(input.paymentMethod)) throw invalid('La forma de compra no es válida.');
+  if (!['delivery', 'pickup'].includes(input.fulfillment)) throw invalid('La forma de compra no es válida.');
+  if (input.paymentMethod !== 'transfer') throw invalid('El pago con tarjeta todavía no está habilitado.');
   if (input.fulfillment === 'delivery' && (!text(input.address, 180) || !text(input.city, 100))) throw invalid('Completá la dirección de envío.');
   const ids = new Set<string>();
   for (const line of input.items) {
@@ -60,10 +62,44 @@ export function createCommerceOrder(restaurantId: string, number: number, idempo
   return {id: randomUUID(), restaurantId, number, idempotencyKey, ...quote, customer: {name: input.customer.name.trim(), email: input.customer.email.trim().toLowerCase(), ...(input.customer.phone ? {phone: input.customer.phone.trim()} : {})}, fulfillment: input.fulfillment, address: (input.address ?? '').trim(), city: (input.city ?? '').trim(), paymentMethod: input.paymentMethod, paymentStatus: 'pending', status: 'new', createdAt: now.toISOString()};
 }
 
+const normalized = (value: unknown) => typeof value === 'string' ? value.trim() : '';
+const commerceLineSignature = (value: unknown) => {
+  if (!value || typeof value !== 'object') return '';
+  const line = value as {productId?: unknown; variantId?: unknown; quantity?: unknown};
+  return `${String(line.productId ?? '')}:${String(line.variantId ?? '')}:${String(line.quantity ?? '')}`;
+};
+
+export function sameCommerceCheckout(order: CommerceOrder, input: unknown) {
+  if (!input || typeof input !== 'object') return false;
+  const checkout = input as Partial<CommerceCheckoutInput>;
+  const customer = checkout.customer;
+  if (!customer || typeof customer !== 'object' || !Array.isArray(checkout.items)) return false;
+  if (checkout.fulfillment !== order.fulfillment || checkout.paymentMethod !== order.paymentMethod) return false;
+  if (normalized(customer.name) !== order.customer.name) return false;
+  if (normalized(customer.email).toLowerCase() !== order.customer.email.toLowerCase()) return false;
+  if (normalized(customer.phone) !== normalized(order.customer.phone)) return false;
+  if (normalized(checkout.address) !== normalized(order.address) || normalized(checkout.city) !== normalized(order.city)) return false;
+  const requested = checkout.items.map(commerceLineSignature).sort();
+  const stored = order.items.map(commerceLineSignature).sort();
+  return requested.length === stored.length && requested.every((line, index) => line === stored[index]);
+}
+
 const transitions: Record<CommerceOrderStatus, CommerceOrderStatus[]> = {new: ['confirmed', 'cancelled'], confirmed: ['packing', 'cancelled'], packing: ['shipped', 'delivered', 'cancelled'], shipped: ['delivered'], delivered: [], cancelled: []};
 export function transitionCommerceOrder(order: CommerceOrder, status: CommerceOrderStatus) {
   if (!transitions[order.status]?.includes(status)) throw invalid('El cambio de estado no está permitido.');
   return {...order, status};
+}
+
+const paymentTransitions: Record<CommercePaymentStatus, CommercePaymentStatus[]> = {
+  pending: ['approved', 'rejected'],
+  approved: ['refunded'],
+  rejected: ['approved'],
+  refunded: []
+};
+export function transitionCommercePayment(order: CommerceOrder, status: CommercePaymentStatus) {
+  if (order.paymentStatus === status) return order;
+  if (!paymentTransitions[order.paymentStatus]?.includes(status)) throw invalid('El cambio de estado de pago no está permitido.');
+  return {...order, paymentStatus: status};
 }
 
 const slugPattern = /^[a-z0-9][a-z0-9-]{1,79}$/;

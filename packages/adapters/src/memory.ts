@@ -1,4 +1,4 @@
-import {createOrder, notFound, transitionOrder, unavailable, type Catalog, type CoreRepository, type Order, type OrderStatus, type PlaceOrderCommand, type RestaurantConfig} from '@nadav/core';
+import {CoreError, createOrder, notFound, transitionOrder, unavailable, type Catalog, type CoreRepository, type Order, type OrderStatus, type PlaceOrderCommand, type RestaurantConfig} from '@nadav/core';
 
 /** In-memory repository for demos and tests. It mirrors the SQL functions (idempotency, stock, cancel) so both behave alike. */
 export class MemoryCoreRepository implements CoreRepository {
@@ -48,6 +48,7 @@ export class MemoryCoreRepository implements CoreRepository {
   async updateOrderStatus(restaurantId: string, orderId: string, status: OrderStatus) {
     const current = await this.order(restaurantId, orderId);
     if (!current) throw notFound('Pedido no encontrado.');
+    if (status === 'cancelled' && current.paymentStatus === 'approved') throw new CoreError('PAYMENT_REFUND_REQUIRED', 'Reembolsá el pago antes de cancelar el pedido.', 409);
     const updated = transitionOrder(current, status);
     if (status === 'cancelled') this.adjustStock(updated.items, 1);
     this.orders.set(`${restaurantId}:${orderId}`, updated);

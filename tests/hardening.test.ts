@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {CoreError, createOrder, defineRestaurantConfig, isRestaurantOpen, isUuid, publicOrder, quoteCheckout, sameCheckout, validateCatalog, validateCommerceProduct, type CheckoutInput, type Order} from '../packages/core/src/index.ts';
+import {CoreError, createCommerceOrder, createOrder, defineRestaurantConfig, isRestaurantOpen, isUuid, publicOrder, quoteCheckout, sameCheckout, sameCommerceCheckout, validateCatalog, validateCommerceCheckout, validateCommerceProduct, type CheckoutInput, type CommerceCheckoutInput, type CommerceQuote, type Order} from '../packages/core/src/index.ts';
 import {MemoryCoreRepository} from '../packages/adapters/src/memory.ts';
 import {assertOrigin, clientAddress, errorResponse, readJson} from '../packages/adapters/src/http.ts';
 import {ensurePaymentPreference, paymentPreferenceBody} from '../packages/adapters/src/mercadopago.ts';
@@ -202,16 +202,39 @@ test('database exceptions become stable client errors; order lookups never injec
 });
 
 // ------------------------------------------------------------------ sessions & commerce
-test('commerce sessions are signed, tenant-bound and role-checked', () => {
+test('commerce sessions are signed, tenant-bound and role-checked', async () => {
   const sub = '77777777-7777-4777-8777-777777777777';
   const request = (value: string) => new Request('https://core.example.com', {headers: {cookie: `other=1; nadav_commerce_admin=${value}`}});
   const editor = createCommerceSession({sub, restaurantId, role: 'editor'});
   assert.equal(verifyCommerceSession(editor)?.role, 'editor');
   assert.equal(verifyCommerceSession(`${editor}x`), null);
-  assert.doesNotThrow(() => requireCommerceAdmin(request(editor), restaurantId, 'editor'));
-  assert.throws(() => requireCommerceAdmin(request(editor), restaurantId, 'admin'), CoreError);
-  assert.throws(() => requireCommerceAdmin(request(editor), '88888888-8888-4888-8888-888888888888', 'editor'), CoreError);
   assert.equal(verifyCommerceSession(createCommerceSession({sub, restaurantId, role: 'constructor' as never})), null);
+  const allowed = stubFetch(() => ({json: [{role: 'editor'}]}));
+  try {
+    await assert.doesNotReject(() => requireCommerceAdmin(request(editor), restaurantId, 'editor'));
+    await assert.rejects(() => requireCommerceAdmin(request(editor), restaurantId, 'admin'), CoreError);
+    await assert.rejects(() => requireCommerceAdmin(request(editor), '88888888-8888-4888-8888-888888888888', 'editor'), CoreError);
+  } finally { allowed.restore(); }
+  const revoked = stubFetch(() => ({json: []}));
+  try { await assert.rejects(() => requireCommerceAdmin(request(editor), restaurantId, 'editor'), CoreError); } finally { revoked.restore(); }
+});
+
+test('commerce checkout is replay-safe and never accepts the demo card method as a real payment', () => {
+  const input: CommerceCheckoutInput = {
+    items: [{productId: '33333333-3333-4333-8333-333333333333', variantId: '55555555-5555-4555-8555-555555555555', quantity: 1}],
+    customer: {name: 'Ada Lovelace', email: 'ada@example.com', phone: '2215550000'},
+    fulfillment: 'pickup',
+    paymentMethod: 'transfer'
+  };
+  const quote: CommerceQuote = {
+    items: [{productId: input.items[0].productId, variantId: input.items[0].variantId, name: 'Remera', image: null, color: 'Negro', size: 'S', unitPrice: 1000, quantity: 1, lineTotal: 1000}],
+    subtotal: 1000, deliveryFee: 0, total: 1000, currency: 'ARS'
+  };
+  const order = createCommerceOrder(restaurantId, 2001, key, input, quote);
+  assert.equal(sameCommerceCheckout(order, structuredClone(input)), true);
+  assert.equal(sameCommerceCheckout(order, {...structuredClone(input), customer: {...input.customer, email: 'otra@example.com'}}), false);
+  assert.equal(sameCommerceCheckout(order, {...structuredClone(input), items: [{...input.items[0], quantity: 2}]}), false);
+  rejects(() => validateCommerceCheckout({...structuredClone(input), paymentMethod: 'card'}), /tarjeta/i);
 });
 
 test('commerce product validation matches database constraints', () => {

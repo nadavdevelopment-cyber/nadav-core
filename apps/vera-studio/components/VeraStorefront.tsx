@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import {useEffect, useMemo, useState} from 'react';
+import {useEffect, useMemo, useRef, useState} from 'react';
 import type {CommerceCatalog, CommerceOrder} from '@nadav/core';
 import {productForStorefront, type Category, type Product} from '../lib/catalog';
 import {veraClient} from '../lib/client';
@@ -26,6 +26,7 @@ export function VeraStorefront() {
   const [success, setSuccess] = useState<{number: string; lines: CartLine[]; customer: CheckoutData; order: CommerceOrder} | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
+  const checkoutKey = useRef<string | null>(null);
   const client = useMemo(() => { try { return veraClient(); } catch { return null; } }, []);
   useEffect(() => { let cancelled = false; if (!client) { setLoading(false); setLoadError('La tienda no está configurada todavía.'); return; } client.commerce.catalog().then(response => { if (!cancelled) { setCatalog(response.catalog); setLoading(false); } }).catch(() => { if (!cancelled) { setLoading(false); setLoadError('No pudimos cargar la colección. Intentá de nuevo en unos minutos.'); } }); return () => { cancelled = true; }; }, [client]);
   const products = catalog?.products.map(product => productForStorefront(product, catalog)) ?? [];
@@ -46,7 +47,9 @@ export function VeraStorefront() {
   const scrollTo = (id: string) => { document.getElementById(id)?.scrollIntoView({behavior: 'smooth'}); };
   const complete = async (customer: CheckoutData) => {
     if (!client || !catalog) throw new Error('La tienda no está disponible.');
-    const result = await client.commerce.createOrder({items: cart.map(line => ({productId: line.product.id, variantId: line.variantId, quantity: line.quantity})), customer: {name: customer.name, email: customer.email, phone: customer.phone}, fulfillment: customer.fulfillment, address: customer.address, city: customer.city, paymentMethod: customer.payment});
+    const key = checkoutKey.current ?? (checkoutKey.current = crypto.randomUUID());
+    const result = await client.commerce.createOrder({items: cart.map(line => ({productId: line.product.id, variantId: line.variantId, quantity: line.quantity})), customer: {name: customer.name, email: customer.email, phone: customer.phone}, fulfillment: customer.fulfillment, address: customer.address, city: customer.city, paymentMethod: customer.payment}, key);
+    checkoutKey.current = null;
     setCheckoutOpen(false); setSuccess({number: String(result.order.number), lines: cart, customer, order: result.order}); setCart([]);
   };
   return <>
@@ -79,8 +82,8 @@ export function VeraStorefront() {
     <SiteFooter/>
 
     {selected && <ProductDialog product={selected} onClose={() => setSelected(null)} onAdd={add}/>}
-    <CartDrawer lines={cart} open={cartOpen} onClose={() => setCartOpen(false)} onQuantity={(key, quantity) => setCart(current => current.map(line => line.key === key ? {...line, quantity} : line))} onRemove={key => setCart(current => current.filter(line => line.key !== key))} onCheckout={() => { setCartOpen(false); setCheckoutOpen(true); }}/>
-    {checkoutOpen && <CheckoutDialog lines={cart} onClose={() => setCheckoutOpen(false)} onComplete={complete}/>}
+    <CartDrawer lines={cart} open={cartOpen} onClose={() => setCartOpen(false)} onQuantity={(key, quantity) => setCart(current => current.map(line => line.key === key ? {...line, quantity} : line))} onRemove={key => setCart(current => current.filter(line => line.key !== key))} onCheckout={() => { checkoutKey.current = crypto.randomUUID(); setCartOpen(false); setCheckoutOpen(true); }}/>
+    {checkoutOpen && <CheckoutDialog lines={cart} deliveryFee={catalog?.settings.deliveryFee ?? 0} onClose={() => setCheckoutOpen(false)} onComplete={complete}/>}
     {success && <OrderSuccess {...success} onClose={() => setSuccess(null)}/>}
   </>;
 }

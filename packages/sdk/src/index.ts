@@ -1,4 +1,4 @@
-import type {CatalogResponse, CheckoutInput, Order, PublicOrder, Quote, CommerceCatalog, CommerceCatalogResponse, CommerceCategory, CommerceCheckoutInput, CommerceContent, CommerceOrder, CommerceOrderStatus, CommerceProduct, CommerceQuote, CommerceSettings} from '@nadav/core';
+import type {CatalogResponse, CheckoutInput, Order, PublicOrder, Quote, CommerceCatalog, CommerceCatalogResponse, CommerceCategory, CommerceCheckoutInput, CommerceContent, CommerceOrder, CommerceOrderStatus, CommercePaymentStatus, CommerceProduct, CommerceQuote, CommerceSettings} from '@nadav/core';
 
 export type NadavClientOptions = {baseUrl: string; restaurant: string; fetch?: typeof globalThis.fetch};
 type ApiError = {error?: {code?: string; message?: string}};
@@ -41,6 +41,7 @@ export function createNadavClient(options: NadavClientOptions) {
         saveProduct: (product: CommerceProduct) => authed<{product: CommerceProduct}>('/commerce/admin/products', {method: uuid.test(product.id) ? 'PUT' : 'POST', body: JSON.stringify({store: options.restaurant, product})}),
         orders: () => authed<{orders: CommerceOrder[]}>(`/commerce/admin/orders?store=${encodeURIComponent(options.restaurant)}`),
         updateOrder: (orderId: string, status: CommerceOrderStatus) => authed<{order: CommerceOrder}>('/commerce/admin/orders', {method: 'PATCH', body: JSON.stringify({store: options.restaurant, orderId, status})}),
+        updatePayment: (orderId: string, paymentStatus: CommercePaymentStatus) => authed<{order: CommerceOrder}>('/commerce/admin/orders', {method: 'PATCH', body: JSON.stringify({store: options.restaurant, orderId, paymentStatus})}),
         content: () => authed<{content: CommerceContent; settings: CommerceSettings}>(`/commerce/admin/content?store=${encodeURIComponent(options.restaurant)}`),
         saveContent: (content: CommerceContent, settings: CommerceSettings) => authed<{content: CommerceContent; settings: CommerceSettings}>('/commerce/admin/content', {method: 'PUT', body: JSON.stringify({store: options.restaurant, content, settings})}),
         uploadImage: async (file: File) => {

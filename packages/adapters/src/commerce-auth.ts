@@ -17,10 +17,14 @@ export function verifyCommerceSession(value: string | undefined): CommerceSessio
   const parsed = decodeSession<CommerceSession>(value);
   return parsed && isUuid(parsed.sub) && isUuid(parsed.restaurantId) && Object.hasOwn(roleRank, parsed.role) && parsed.exp > Date.now() / 1000 ? parsed : null;
 }
-export function requireCommerceAdmin(request: Request, restaurantId: string, required: CommerceRole = 'editor') {
+export async function requireCommerceAdmin(request: Request, restaurantId: string, required: CommerceRole = 'editor') {
   const session = verifyCommerceSession(readCookie(request, cookieName));
-  if (!session || session.restaurantId !== restaurantId || roleRank[session.role] < roleRank[required]) throw new CoreError('NO_AUTH', 'No tenés permisos para esta acción.', 401);
-  return session;
+  if (!session || session.restaurantId !== restaurantId) throw new CoreError('NO_AUTH', 'No tenés permisos para esta acción.', 401);
+  // The role inside the cookie is only a snapshot. Re-read membership on every admin request so
+  // revocation/demotion takes effect immediately instead of remaining valid for the cookie lifetime.
+  const role = await commerceMemberRole(restaurantId, session.sub);
+  if (!role || roleRank[role] < roleRank[required]) throw new CoreError('NO_AUTH', 'No tenés permisos para esta acción.', 401);
+  return {...session, role};
 }
 
 export async function authenticateCommerceUser(email: string, password: string, restaurantId: string) {

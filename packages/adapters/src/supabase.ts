@@ -97,6 +97,7 @@ export class SupabaseCoreRepository implements CoreRepository {
     try {
       return await rpc<Order>('core_update_order_status', {p_restaurant: restaurantId, p_order: orderId, p_expected: order.status, p_status: status});
     } catch (error) {
+      if (isDatabaseError(error, 'PAYMENT_REFUND_REQUIRED')) throw new CoreError('PAYMENT_REFUND_REQUIRED', 'Reembolsá el pago antes de cancelar el pedido.', 409);
       if (isDatabaseError(error, 'ORDER_CONFLICT')) throw new CoreError('CONFLICT', 'El pedido cambió en otra sesión. Actualizá e intentá de nuevo.', 409);
       if (isDatabaseError(error, 'ORDER_NOT_FOUND')) throw notFound('Pedido no encontrado.');
       throw error;

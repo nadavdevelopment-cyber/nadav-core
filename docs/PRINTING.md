@@ -23,4 +23,4 @@ Antes de producción probá una impresora física en 58/80 mm. La aceptación de
 - Los pedidos de Mercado Pago se imprimen al aprobarse el pago (el webhook dispara el trabajo); efectivo y transferencia, al crearse.
 - El ticket usa la zona horaria del restaurante y formato de 24 h.
 - Reimpresión manual: `POST /api/v1/admin/printnode` con `{"action":"reprint","orderId":"..."}` crea un trabajo `manual` nuevo y auditado.
-- Un trabajo trabado en `processing` por más de 5 minutos puede reclamarse de nuevo. Sigue faltando un despachador periódico para reintentar trabajos `failed`.
+- Un trabajo trabado en `processing` por más de 5 minutos puede reclamarse de nuevo. Los trabajos fallidos pueden reintentarse mediante el endpoint de mantenimiento, con límite de intentos para evitar reintentos infinitos.

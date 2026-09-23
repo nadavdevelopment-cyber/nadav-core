@@ -1,4 +1,4 @@
--- Integration test for migrations 0001-0003. Run with scripts/test-sql.sh against a scratch database.
+-- Integration test for all Core migrations. Run with scripts/test-sql.sh against a scratch database.
 -- Every assertion raises an exception on failure, so `psql -v ON_ERROR_STOP=1` fails the run.
 begin;
 create or replace function pg_temp.check(ok boolean, label text) returns void language plpgsql as $$
@@ -58,6 +58,9 @@ insert into core_payment_intents(restaurant_id,order_id,status,payment_id) value
 select pg_temp.check(core_reconcile_payment('11111111-1111-4111-8111-111111111111','abababab-abab-4bab-8bab-abababababab',10,'charged_back',1000,'nadav-core:11111111-1111-4111-8111-111111111111:abababab-abab-4bab-8bab-abababababab')='charged_back','approved -> charged_back allowed');
 select pg_temp.check(core_reconcile_payment('11111111-1111-4111-8111-111111111111','abababab-abab-4bab-8bab-abababababab',11,'approved',1000,'nadav-core:11111111-1111-4111-8111-111111111111:abababab-abab-4bab-8bab-abababababab')='charged_back','charged_back is terminal');
 select pg_temp.check((select payment_id=10 from core_payment_intents where order_id='abababab-abab-4bab-8bab-abababababab'),'chargeback stores the chargeback payment id');
+update core_orders set payment_status='approved',data=jsonb_set(data,'{paymentStatus}','"approved"'::jsonb) where id='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+select pg_temp.raises($q$select core_update_order_status('11111111-1111-4111-8111-111111111111','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','confirmed','cancelled')$q$,'PAYMENT_REFUND_REQUIRED');
+update core_orders set payment_status='refunded',data=jsonb_set(data,'{paymentStatus}','"refunded"'::jsonb) where id='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
 -- 5. cancelling returns the stock (3 + 2 = 5) and bumps the catalog revision
 select pg_temp.check((core_update_order_status('11111111-1111-4111-8111-111111111111','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','confirmed','cancelled')->>'status')='cancelled','order cancelled');
@@ -72,6 +75,9 @@ insert into core_payment_intents(restaurant_id,order_id,status) values ('1111111
 select core_reconcile_payment('11111111-1111-4111-8111-111111111111','ffffffff-ffff-4fff-8fff-ffffffffffff',5,'approved',1000,'nadav-core:11111111-1111-4111-8111-111111111111:ffffffff-ffff-4fff-8fff-ffffffffffff');
 select pg_temp.check((select count(*)=1 from core_print_jobs where order_id='ffffffff-ffff-4fff-8fff-ffffffffffff' and kind='auto'),'paid Mercado Pago order queues its print job');
 select pg_temp.check((core_claim_print_job((select id from core_print_jobs where order_id='ffffffff-ffff-4fff-8fff-ffffffffffff')))->>'time_zone'='America/Argentina/Buenos_Aires','print job carries the restaurant time zone');
+update core_print_jobs set status='failed',updated_at=now()-interval '2 minutes' where order_id='ffffffff-ffff-4fff-8fff-ffffffffffff';
+select pg_temp.check((core_claim_print_job((select id from core_print_jobs where order_id='ffffffff-ffff-4fff-8fff-ffffffffffff')))->>'id' is not null,'failed print job can be reclaimed');
+select pg_temp.check((select status='processing' and attempts=2 from core_print_jobs where order_id='ffffffff-ffff-4fff-8fff-ffffffffffff'),'print retry increments attempts and reclaims the job');
 
 -- 7. housekeeping
 insert into core_rate_limits(key,hits,resets_at) values ('old',1,now()-interval '3 days'),('fresh',1,now()+interval '1 hour');
@@ -95,8 +101,20 @@ select pg_temp.check((select jsonb_array_length(core_commerce_catalog('22222222-
 select core_commerce_place_order('22222222-2222-4222-8222-222222222222','aaaaaaaa-0000-4aaa-8aaa-aaaaaaaaaaaa',
   jsonb_build_object('items',jsonb_build_array(jsonb_build_object('productId',:'pid','variantId',:'vs','quantity',3)),'customer','{"name":"Ada","email":"a@b.co"}'::jsonb,'fulfillment','pickup','paymentMethod','transfer')) as placed \gset
 select pg_temp.check((select stock=4 from core_commerce_variants where id=:'vs'),'commerce order took 3 units');
-select pg_temp.check((core_commerce_dashboard('22222222-2222-4222-8222-222222222222')->>'orders')::int=1 and (core_commerce_dashboard('22222222-2222-4222-8222-222222222222')->>'revenue')::int=3600,'dashboard aggregates in SQL');
+select pg_temp.check((core_commerce_dashboard('22222222-2222-4222-8222-222222222222')->>'orders')::int=1 and (core_commerce_dashboard('22222222-2222-4222-8222-222222222222')->>'revenue')::int=0,'dashboard excludes pending transfers from revenue');
+select pg_temp.check(not (core_commerce_place_order('22222222-2222-4222-8222-222222222222','aaaaaaaa-0000-4aaa-8aaa-aaaaaaaaaaaa',
+  jsonb_build_object('items',jsonb_build_array(jsonb_build_object('productId',:'pid','variantId',:'vs','quantity',3)),'customer','{"name":"Ada","email":"a@b.co"}'::jsonb,'fulfillment','pickup','paymentMethod','transfer'))->>'created')::boolean,'commerce retry returns the original order');
+select pg_temp.raises(format($q$select core_commerce_place_order('22222222-2222-4222-8222-222222222222','aaaaaaaa-0000-4aaa-8aaa-aaaaaaaaaaaa',
+  jsonb_build_object('items',jsonb_build_array(jsonb_build_object('productId','%s','variantId','%s','quantity',2)),'customer','{"name":"Ada","email":"a@b.co"}'::jsonb,'fulfillment','pickup','paymentMethod','transfer'))$q$,:'pid',:'vs'),'IDEMPOTENCY_CONFLICT');
+select pg_temp.raises(format($q$select core_commerce_place_order('22222222-2222-4222-8222-222222222222','bbbbbbbb-0000-4bbb-8bbb-bbbbbbbbbbbb',
+  jsonb_build_object('items',jsonb_build_array(jsonb_build_object('productId','%s','variantId','%s','quantity',1)),'customer','{"name":"Ada","email":"a@b.co"}'::jsonb,'fulfillment','pickup','paymentMethod','card'))$q$,:'pid',:'vs'),'PAYMENT_NOT_CONFIGURED');
+select pg_temp.check((core_commerce_update_payment_status('22222222-2222-4222-8222-222222222222',(:'placed'::jsonb->'order'->>'id')::uuid,'pending','approved')->>'paymentStatus')='approved','commerce transfer can be marked paid');
+select pg_temp.check((core_commerce_dashboard('22222222-2222-4222-8222-222222222222')->>'revenue')::int=3600,'dashboard revenue counts approved payments only');
+select pg_temp.raises(format($q$select core_commerce_update_order_status('22222222-2222-4222-8222-222222222222','%s','new','cancelled')$q$,(:'placed'::jsonb->'order'->>'id')),'PAYMENT_REFUND_REQUIRED');
+select pg_temp.raises(format($q$select core_commerce_update_payment_status('22222222-2222-4222-8222-222222222222','%s','pending','refunded')$q$,(:'placed'::jsonb->'order'->>'id')),'ORDER_CONFLICT');
+select pg_temp.check((core_commerce_update_payment_status('22222222-2222-4222-8222-222222222222',(:'placed'::jsonb->'order'->>'id')::uuid,'approved','refunded')->>'paymentStatus')='refunded','approved transfer can be marked refunded');
 select core_commerce_update_order_status('22222222-2222-4222-8222-222222222222',(:'placed'::jsonb->'order'->>'id')::uuid,'new','cancelled');
 select pg_temp.check((select stock=7 from core_commerce_variants where id=:'vs'),'commerce cancel restores stock');
+select pg_temp.check((core_commerce_dashboard('22222222-2222-4222-8222-222222222222')->>'revenue')::int=0,'cancelled commerce orders are excluded from revenue');
 select pg_temp.raises(format($q$select core_commerce_update_order_status('22222222-2222-4222-8222-222222222222','%s','new','confirmed')$q$,(:'placed'::jsonb->'order'->>'id')),'ORDER_CONFLICT');
 rollback;

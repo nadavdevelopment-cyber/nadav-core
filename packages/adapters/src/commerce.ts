@@ -1,5 +1,6 @@
-import {createCommerceOrder, isUuid, quoteCommerceCheckout, transitionCommerceOrder, type CommerceCatalog, type CommerceCategory, type CommerceCheckoutInput, type CommerceContent, type CommerceOrder, type CommerceOrderStatus, type CommerceProduct, type CommerceRole, type CommerceSettings, type CommerceVariant, validateCommerceProduct} from '@nadav/core';
+import {createCommerceOrder, isUuid, quoteCommerceCheckout, sameCommerceCheckout, transitionCommerceOrder, transitionCommercePayment, type CommerceCatalog, type CommerceCategory, type CommerceCheckoutInput, type CommerceContent, type CommerceOrder, type CommerceOrderStatus, type CommercePaymentStatus, type CommerceProduct, type CommerceRole, type CommerceSettings, type CommerceVariant, validateCommerceProduct} from '@nadav/core';
 import {CoreError} from '@nadav/core';
+import {validMediaPath} from './media.ts';
 import {DatabaseError, rpc, supabase} from './supabase.ts';
 
 type RestaurantRow = {id: string; slug: string; name: string; active: boolean};
@@ -29,12 +30,25 @@ export async function commerceCatalog(restaurantId: string): Promise<CommerceCat
 
 export async function commerceQuote(restaurantId: string, input: CommerceCheckoutInput) { return quoteCommerceCheckout(await commerceCatalog(restaurantId), input); }
 
+export async function commerceOrderByIdempotencyKey(restaurantId: string, key: string) {
+  if (!isUuid(key)) return null;
+  const rows = await supabase<{data: CommerceOrder}[]>(`core_commerce_orders?restaurant_id=eq.${filter(restaurantId)}&idempotency_key=eq.${filter(key)}&select=data`);
+  return rows[0]?.data ?? null;
+}
+
 export async function commercePlaceOrder(restaurantId: string, key: string, input: CommerceCheckoutInput) {
+  const existing = await commerceOrderByIdempotencyKey(restaurantId, key);
+  if (existing) {
+    if (!sameCommerceCheckout(existing, input)) throw new CoreError('IDEMPOTENCY_CONFLICT', 'La clave ya se usó para otro pedido.', 409);
+    return {order: existing, created: false};
+  }
   const quote = await commerceQuote(restaurantId, input);
   const provisional = createCommerceOrder(restaurantId, 0, key, input, quote);
   try {
     return await rpc<{order: CommerceOrder; created: boolean}>('core_commerce_place_order', {p_restaurant: restaurantId, p_key: key, p_input: {items: input.items, customer: input.customer, fulfillment: input.fulfillment, address: input.address, city: input.city, paymentMethod: input.paymentMethod, requestId: provisional.id}});
   } catch (error) {
+    if (error instanceof DatabaseError && error.detail === 'IDEMPOTENCY_CONFLICT') throw new CoreError('IDEMPOTENCY_CONFLICT', 'La clave ya se usó para otro pedido.', 409);
+    if (error instanceof DatabaseError && error.detail === 'PAYMENT_NOT_CONFIGURED') throw new CoreError('PAYMENT_NOT_CONFIGURED', 'El medio de pago no está disponible.', 409);
     if (error instanceof DatabaseError && error.detail === 'OUT_OF_STOCK') throw new CoreError('UNAVAILABLE', 'Alguna prenda se quedó sin stock. Revisá tu carrito.', 409);
     if (error instanceof DatabaseError && ['PRODUCT_UNAVAILABLE', 'VARIANT_UNAVAILABLE'].includes(error.detail)) throw new CoreError('UNAVAILABLE', 'Una prenda ya no está disponible. Revisá tu carrito.', 409);
     throw error;
@@ -63,6 +77,21 @@ export async function commerceUpdateOrder(restaurantId: string, orderId: string,
     return await rpc<CommerceOrder>('core_commerce_update_order_status', {p_restaurant: restaurantId, p_order: orderId, p_expected: order.status, p_status: status});
   } catch (error) {
     if (error instanceof DatabaseError && error.detail === 'ORDER_CONFLICT') throw new CoreError('CONFLICT', 'El pedido cambió en otra sesión. Actualizá e intentá de nuevo.', 409);
+    if (error instanceof DatabaseError && error.detail === 'PAYMENT_REFUND_REQUIRED') throw new CoreError('PAYMENT_REFUND_REQUIRED', 'Registrá el reembolso antes de cancelar un pedido cobrado.', 409);
+    throw error;
+  }
+}
+
+export async function commerceUpdatePaymentStatus(restaurantId: string, orderId: string, status: CommercePaymentStatus) {
+  const order = isUuid(orderId) ? await commerceOrder(restaurantId, orderId) : null;
+  if (!order) throw new CoreError('NOT_FOUND', 'Pedido no encontrado.', 404);
+  if (order.paymentStatus === status) return order;
+  transitionCommercePayment(order, status);
+  try {
+    return await rpc<CommerceOrder>('core_commerce_update_payment_status', {p_restaurant: restaurantId, p_order: orderId, p_expected: order.paymentStatus, p_status: status});
+  } catch (error) {
+    if (error instanceof DatabaseError && error.detail === 'ORDER_CONFLICT') throw new CoreError('CONFLICT', 'El pago cambió en otra sesión. Actualizá e intentá de nuevo.', 409);
+    if (error instanceof DatabaseError && error.detail === 'PAYMENT_NOT_CONFIGURED') throw new CoreError('PAYMENT_NOT_CONFIGURED', 'El medio de pago no admite confirmación manual.', 409);
     throw error;
   }
 }
@@ -79,8 +108,19 @@ export async function commerceSaveCategory(restaurantId: string, category: Omit<
   return {id: rows[0].id, slug: rows[0].slug, name: rows[0].name, position: rows[0].position, active: rows[0].active};
 }
 
+function commerceImageAllowed(restaurantId: string, image: string) {
+  if (/^\/(?!\/)/.test(image)) return true;
+  const base = process.env.SUPABASE_URL?.replace(/\/$/, '');
+  if (!base) return false;
+  const prefix = `${base}/storage/v1/object/public/nadav-core-media/`;
+  return image.startsWith(prefix) && validMediaPath(restaurantId, image.slice(prefix.length));
+}
+
 export async function commerceSaveProduct(restaurantId: string, raw: CommerceProduct) {
   const product = validateCommerceProduct(raw);
+  if (!product.images.every(image => commerceImageAllowed(restaurantId, image))) {
+    throw new CoreError('INVALID_INPUT', 'Usá imágenes locales o subidas por este negocio.', 400);
+  }
   const category = await supabase<{id: string}[]>(`core_commerce_categories?restaurant_id=eq.${filter(restaurantId)}&id=eq.${filter(product.categoryId)}&select=id`);
   if (!category[0]) throw new CoreError('INVALID_INPUT', 'La categoría no pertenece a este negocio.', 400);
   let id: string;
@@ -109,6 +149,6 @@ export async function commerceSaveContent(restaurantId: string, content: Commerc
 }
 
 export async function commerceDashboard(restaurantId: string) {
-  // Aggregated in SQL: the previous version computed revenue and counts from the latest 500 orders only.
+  // Aggregated in SQL. Revenue means actually approved/collected orders, never pending transfers.
   return rpc<{products: number; activeProducts: number; customers: number; orders: number; revenue: number; recentOrders: CommerceOrder[]}>('core_commerce_dashboard', {p_restaurant: restaurantId});
 }

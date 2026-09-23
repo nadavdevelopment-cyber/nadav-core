@@ -114,6 +114,16 @@ export async function dispatchAutoPrint(restaurantId: string, orderId: string) {
   return jobs[0] ? dispatchPrintJob(jobs[0].id) : false;
 }
 
+export async function retryPrintJobs(restaurantId: string, limit = 10) {
+  const capped = Math.max(1, Math.min(25, Math.floor(limit)));
+  const jobs = await supabase<{id: string}[]>(`core_print_jobs?restaurant_id=eq.${filterValue(restaurantId)}&status=in.(pending,failed,processing)&attempts=lt.5&order=updated_at.asc&limit=${capped}&select=id`);
+  let submitted = 0;
+  for (const job of jobs) {
+    if (await dispatchPrintJob(job.id)) submitted += 1;
+  }
+  return {checked: jobs.length, submitted};
+}
+
 /** Manual reprint: always a new, separate job (never deduplicated against the automatic one). */
 export async function reprintOrder(restaurantId: string, orderId: string) {
   if (!isUuid(orderId)) throw notFound('Pedido no encontrado.');

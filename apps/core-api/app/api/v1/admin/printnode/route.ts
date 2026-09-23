@@ -1,4 +1,4 @@
-import {connectPrintNode, disconnectPrintNode, errorResponse, listPrinters, openSecret, readJson, reprintOrder, requireAdmin, selectPrinter, supabase, testPrint} from '@nadav/adapters';
+import {connectPrintNode, disconnectPrintNode, errorResponse, listPrinters, openSecret, readJson, reprintOrder, requireAdmin, retryPrintJobs, selectPrinter, supabase, testPrint} from '@nadav/adapters';
 import {asObject} from '@nadav/adapters';
 import {CoreError, unavailable} from '@nadav/core';
 import {coreContext} from '../../../../../server/context';
@@ -18,6 +18,11 @@ export async function POST(request: Request) {
       const ok = await reprintOrder(context.restaurantId, String(body.orderId ?? ''));
       await context.repository.audit({restaurantId: context.restaurantId, action: 'order.reprinted', details: {orderId: String(body.orderId), ok}});
       return Response.json({ok}, {status: ok ? 200 : 502});
+    }
+    if (action === 'retry_failed') {
+      const result = await retryPrintJobs(context.restaurantId, 20);
+      await context.repository.audit({restaurantId: context.restaurantId, action: 'print.retry_batch', details: result});
+      return Response.json(result);
     }
     if (action === 'printers') {
       const rows = await supabase<{api_key_ciphertext: string | null}[]>(`core_print_settings?restaurant_id=eq.${encodeURIComponent(context.restaurantId)}&select=api_key_ciphertext`);

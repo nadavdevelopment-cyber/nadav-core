@@ -27,3 +27,6 @@ Generá la clave de cifrado con `openssl rand -base64 32`. Respaldala: perderla 
 - Las notificaciones fuera de orden no degradan un pago aprobado (ver migración 0003).
 - Si una notificación no coincide con el pedido (monto, referencia) se audita como `payment.mismatch` y se responde 200 para que Mercado Pago no la reenvíe indefinidamente.
 - Una reserva de preferencia que quedó en `creating` por más de 2 minutos (request caído) se libera automáticamente al reintentar.
+- Un pedido con `paymentStatus=approved` no puede cancelarse hasta que el pago figure
+  `refunded` o `charged_back`. Para un reembolso voluntario, realizar primero el refund
+  en Mercado Pago y esperar/reconciliar el webhook antes de cancelar el pedido.
