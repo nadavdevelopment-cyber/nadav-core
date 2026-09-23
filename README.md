@@ -39,6 +39,7 @@ Con `NADAV_CORE_DEMO_MODE=true`, la API usa un repositorio en memoria para proba
 npm run typecheck
 npm test
 npm run build
+DATABASE_URL=postgres://... npm run test:sql   # migraciones + funciones SQL contra un PostgreSQL de prueba
 ```
 
 ## Principios

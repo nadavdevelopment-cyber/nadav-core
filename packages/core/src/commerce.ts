@@ -1,5 +1,6 @@
 import {randomUUID} from 'node:crypto';
 import {invalid} from './errors.ts';
+import {isUuid} from './ids.ts';
 
 export type CommerceRole = 'owner' | 'admin' | 'editor';
 export type CommerceOrderStatus = 'new' | 'confirmed' | 'packing' | 'shipped' | 'delivered' | 'cancelled';
@@ -55,7 +56,7 @@ export function quoteCommerceCheckout(catalog: CommerceCatalog, rawInput: Commer
 }
 
 export function createCommerceOrder(restaurantId: string, number: number, idempotencyKey: string, input: CommerceCheckoutInput, quote: CommerceQuote, now = new Date()): CommerceOrder {
-  if (!/^[0-9a-f-]{36}$/i.test(restaurantId) || !/^[0-9a-f-]{36}$/i.test(idempotencyKey)) throw invalid('Identificador inválido.');
+  if (!isUuid(restaurantId) || !isUuid(idempotencyKey)) throw invalid('Identificador inválido.');
   return {id: randomUUID(), restaurantId, number, idempotencyKey, ...quote, customer: {name: input.customer.name.trim(), email: input.customer.email.trim().toLowerCase(), ...(input.customer.phone ? {phone: input.customer.phone.trim()} : {})}, fulfillment: input.fulfillment, address: (input.address ?? '').trim(), city: (input.city ?? '').trim(), paymentMethod: input.paymentMethod, paymentStatus: 'pending', status: 'new', createdAt: now.toISOString()};
 }
 
@@ -65,9 +66,21 @@ export function transitionCommerceOrder(order: CommerceOrder, status: CommerceOr
   return {...order, status};
 }
 
+const slugPattern = /^[a-z0-9][a-z0-9-]{1,79}$/;
+const hexColor = /^#[0-9a-f]{6}$/i;
+
 export function validateCommerceProduct(value: CommerceProduct) {
-  if (!value || !text(value.slug, 80) || !text(value.name, 160) || !text(value.description, 2_000) || !text(value.categoryId, 90) || !amount(value.price) || value.price === 0 || !Array.isArray(value.images) || value.images.length > 8 || !Array.isArray(value.variants) || value.variants.length < 1 || value.variants.length > 100) throw invalid('Los datos de la prenda no son válidos.');
-  if (!value.images.every(image => text(image, 2_000) && (/^\//.test(image) || /^https:\/\//.test(image)))) throw invalid('Una imagen no es válida.');
-  for (const variant of value.variants) if (!text(variant.color, 80) || !text(variant.size, 40) || (variant.stock !== null && (!Number.isInteger(variant.stock) || variant.stock < 0 || variant.stock > 1_000_000))) throw invalid('Una variante no es válida.');
+  if (!value || !text(value.slug, 80) || !slugPattern.test(value.slug) || !text(value.name, 160) || !text(value.description, 2_000) || !text(value.categoryId, 90) || !amount(value.price) || value.price === 0 || !Array.isArray(value.images) || value.images.length > 8 || !Array.isArray(value.variants) || value.variants.length < 1 || value.variants.length > 100) throw invalid('Los datos de la prenda no son válidos.');
+  if (typeof value.composition !== 'string' || value.composition.length > 1_000 || typeof value.care !== 'string' || value.care.length > 1_000 || typeof value.active !== 'boolean') throw invalid('Los datos de la prenda no son válidos.');
+  if (!value.images.every(image => text(image, 2_000) && (/^\/(?!\/)/.test(image) || /^https:\/\//.test(image)))) throw invalid('Una imagen no es válida.');
+  const combos = new Set<string>();
+  for (const variant of value.variants) {
+    if (!variant || !text(variant.color, 80) || !text(variant.size, 40) || typeof variant.active !== 'boolean' || (variant.stock !== null && (!Number.isInteger(variant.stock) || variant.stock < 0 || variant.stock > 1_000_000))) throw invalid('Una variante no es válida.');
+    if (variant.sku !== null && variant.sku !== undefined && !text(variant.sku, 80)) throw invalid('Una variante no es válida.');
+    if (variant.colorValue !== null && variant.colorValue !== undefined && variant.colorValue !== '' && !hexColor.test(variant.colorValue)) throw invalid('El color de una variante no es válido.');
+    const combo = `${variant.color.trim().toLowerCase()}|${variant.size.trim().toLowerCase()}`;
+    if (combos.has(combo)) throw invalid('Hay variantes repetidas (mismo color y talle).');
+    combos.add(combo);
+  }
   return structuredClone(value);
 }

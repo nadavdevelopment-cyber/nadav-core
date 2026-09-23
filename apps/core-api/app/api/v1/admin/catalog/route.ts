@@ -13,7 +13,7 @@ export async function GET(request: Request) {
 export async function PUT(request: Request) {
   try {
     requireAdmin(request);
-    const body = asObject(await readJson(request, 500_000));
+    const body = asObject(await readJson(request, 500_000, {adminOnly: true}));
     const context = await coreContext();
     const catalog = validateCatalog(body.catalog as Catalog, context.restaurantId);
     const saved = await context.repository.replaceCatalog(context.restaurantId, Number(body.revision), catalog);

@@ -1,6 +1,6 @@
-import {createCommerceOrder, quoteCommerceCheckout, transitionCommerceOrder, type CommerceCatalog, type CommerceCategory, type CommerceCheckoutInput, type CommerceContent, type CommerceOrder, type CommerceOrderStatus, type CommerceProduct, type CommerceRole, type CommerceSettings, type CommerceVariant, validateCommerceProduct} from '@nadav/core';
+import {createCommerceOrder, isUuid, quoteCommerceCheckout, transitionCommerceOrder, type CommerceCatalog, type CommerceCategory, type CommerceCheckoutInput, type CommerceContent, type CommerceOrder, type CommerceOrderStatus, type CommerceProduct, type CommerceRole, type CommerceSettings, type CommerceVariant, validateCommerceProduct} from '@nadav/core';
 import {CoreError} from '@nadav/core';
-import {rpc, supabase} from './supabase.ts';
+import {DatabaseError, rpc, supabase} from './supabase.ts';
 
 type RestaurantRow = {id: string; slug: string; name: string; active: boolean};
 type CategoryRow = {id: string; slug: string; name: string; position: number; active: boolean};
@@ -21,17 +21,10 @@ export async function commerceStoreBySlug(slug: string) {
 }
 
 export async function commerceCatalog(restaurantId: string): Promise<CommerceCatalog> {
-  const [categories, products, variants, contentRows] = await Promise.all([
-    supabase<CategoryRow[]>(`core_commerce_categories?restaurant_id=eq.${filter(restaurantId)}&select=${select}&order=position.asc,name.asc`),
-    supabase<ProductRow[]>(`core_commerce_products?restaurant_id=eq.${filter(restaurantId)}&select=id,slug,category_id,name,description,price,images,composition,care,active&order=created_at.asc`),
-    supabase<VariantRow[]>(`core_commerce_variants?restaurant_id=eq.${filter(restaurantId)}&select=id,product_id,sku,color,color_value,size,stock,active&order=created_at.asc`),
-    supabase<ContentRow[]>(`core_commerce_content?restaurant_id=eq.${filter(restaurantId)}&select=content,settings`)
-  ]);
-  const content = contentRows[0];
-  if (!content) throw new CoreError('NOT_FOUND', 'Commerce no está configurado.', 404);
-  const variantsByProduct = new Map<string, CommerceVariant[]>();
-  for (const variant of variants) variantsByProduct.set(variant.product_id, [...(variantsByProduct.get(variant.product_id) ?? []), {id: variant.id, sku: variant.sku, color: variant.color, colorValue: variant.color_value, size: variant.size, stock: variant.stock, active: variant.active}]);
-  return {restaurantId, categories: categories.map(row => ({id: row.id, slug: row.slug, name: row.name, position: row.position, active: row.active})), products: products.map(row => ({id: row.id, slug: row.slug, categoryId: row.category_id, name: row.name, description: row.description, price: Number(row.price), images: row.images ?? [], composition: row.composition, care: row.care, active: row.active, variants: variantsByProduct.get(row.id) ?? []})), content: content.content, settings: content.settings};
+  // One SQL function returns the whole catalog: fewer round trips, and no silent cut at PostgREST's max-rows (1000 by default).
+  const data = await rpc<Omit<CommerceCatalog, 'restaurantId'> | null>('core_commerce_catalog', {p_restaurant: restaurantId});
+  if (!data?.content) throw new CoreError('NOT_FOUND', 'Commerce no está configurado.', 404);
+  return {restaurantId, ...data};
 }
 
 export async function commerceQuote(restaurantId: string, input: CommerceCheckoutInput) { return quoteCommerceCheckout(await commerceCatalog(restaurantId), input); }
@@ -39,7 +32,13 @@ export async function commerceQuote(restaurantId: string, input: CommerceCheckou
 export async function commercePlaceOrder(restaurantId: string, key: string, input: CommerceCheckoutInput) {
   const quote = await commerceQuote(restaurantId, input);
   const provisional = createCommerceOrder(restaurantId, 0, key, input, quote);
-  return rpc<{order: CommerceOrder; created: boolean}>('core_commerce_place_order', {p_restaurant: restaurantId, p_key: key, p_input: {items: input.items, customer: input.customer, fulfillment: input.fulfillment, address: input.address, city: input.city, paymentMethod: input.paymentMethod, requestId: provisional.id}});
+  try {
+    return await rpc<{order: CommerceOrder; created: boolean}>('core_commerce_place_order', {p_restaurant: restaurantId, p_key: key, p_input: {items: input.items, customer: input.customer, fulfillment: input.fulfillment, address: input.address, city: input.city, paymentMethod: input.paymentMethod, requestId: provisional.id}});
+  } catch (error) {
+    if (error instanceof DatabaseError && error.detail === 'OUT_OF_STOCK') throw new CoreError('UNAVAILABLE', 'Alguna prenda se quedó sin stock. Revisá tu carrito.', 409);
+    if (error instanceof DatabaseError && ['PRODUCT_UNAVAILABLE', 'VARIANT_UNAVAILABLE'].includes(error.detail)) throw new CoreError('UNAVAILABLE', 'Una prenda ya no está disponible. Revisá tu carrito.', 409);
+    throw error;
+  }
 }
 
 export async function commerceMemberRole(restaurantId: string, userId: string) {
@@ -56,16 +55,20 @@ export async function commerceOrder(restaurantId: string, orderId: string) {
   return rows[0]?.data ?? null;
 }
 export async function commerceUpdateOrder(restaurantId: string, orderId: string, status: CommerceOrderStatus) {
-  const order = await commerceOrder(restaurantId, orderId);
+  const order = isUuid(orderId) ? await commerceOrder(restaurantId, orderId) : null;
   if (!order) throw new CoreError('NOT_FOUND', 'Pedido no encontrado.', 404);
-  const updated = transitionCommerceOrder(order, status);
-  const rows = await supabase<{data: CommerceOrder}[]>(`core_commerce_orders?restaurant_id=eq.${filter(restaurantId)}&id=eq.${filter(orderId)}`, {method: 'PATCH', body: {status, data: updated, updated_at: new Date().toISOString()}});
-  if (!rows[0]) throw new CoreError('CONFLICT', 'El pedido cambió en otra sesión.', 409);
-  return rows[0].data;
+  transitionCommerceOrder(order, status);
+  try {
+    // Compare-and-set inside SQL; cancelling also gives the reserved stock back to the variants.
+    return await rpc<CommerceOrder>('core_commerce_update_order_status', {p_restaurant: restaurantId, p_order: orderId, p_expected: order.status, p_status: status});
+  } catch (error) {
+    if (error instanceof DatabaseError && error.detail === 'ORDER_CONFLICT') throw new CoreError('CONFLICT', 'El pedido cambió en otra sesión. Actualizá e intentá de nuevo.', 409);
+    throw error;
+  }
 }
 
 export async function commerceSaveCategory(restaurantId: string, category: Omit<CommerceCategory, 'id'> & {id?: string}) {
-  if (!/^[a-z0-9][a-z0-9-]{1,79}$/.test(category.slug) || !category.name.trim() || !Number.isInteger(category.position)) throw new CoreError('INVALID_INPUT', 'La categoría no es válida.', 400);
+  if (typeof category?.slug !== 'string' || !/^[a-z0-9][a-z0-9-]{1,79}$/.test(category.slug) || typeof category.name !== 'string' || !category.name.trim() || category.name.length > 100 || !Number.isInteger(category.position) || (category.id !== undefined && !isUuid(category.id))) throw new CoreError('INVALID_INPUT', 'La categoría no es válida.', 400);
   const body = {slug: category.slug.trim(), name: category.name.trim(), position: category.position, active: Boolean(category.active), updated_at: new Date().toISOString()};
   if (category.id) {
     const rows = await supabase<CategoryRow[]>(`core_commerce_categories?restaurant_id=eq.${filter(restaurantId)}&id=eq.${filter(category.id)}`, {method: 'PATCH', body});
@@ -80,27 +83,32 @@ export async function commerceSaveProduct(restaurantId: string, raw: CommercePro
   const product = validateCommerceProduct(raw);
   const category = await supabase<{id: string}[]>(`core_commerce_categories?restaurant_id=eq.${filter(restaurantId)}&id=eq.${filter(product.categoryId)}&select=id`);
   if (!category[0]) throw new CoreError('INVALID_INPUT', 'La categoría no pertenece a este negocio.', 400);
-  const body = {category_id: product.categoryId, slug: product.slug, name: product.name, description: product.description, price: product.price, images: product.images, composition: product.composition, care: product.care, active: product.active, updated_at: new Date().toISOString()};
-  let id = product.id;
-  if (/^[0-9a-f-]{36}$/i.test(product.id)) {
-    const rows = await supabase<ProductRow[]>(`core_commerce_products?restaurant_id=eq.${filter(restaurantId)}&id=eq.${filter(product.id)}`, {method: 'PATCH', body});
-    if (!rows[0]) throw new CoreError('NOT_FOUND', 'Prenda no encontrada.', 404);
-  } else {
-    const rows = await supabase<ProductRow[]>('core_commerce_products', {method: 'POST', body: {restaurant_id: restaurantId, ...body}});
-    id = rows[0].id;
+  let id: string;
+  try {
+    // Product and variants are written in one transaction; variants keep their ids, so carts and stock survive an edit.
+    id = await rpc<string>('core_commerce_save_product', {p_restaurant: restaurantId, p_product: {...product, id: isUuid(product.id) ? product.id : null}});
+  } catch (error) {
+    if (error instanceof DatabaseError && error.detail === 'PRODUCT_NOT_FOUND') throw new CoreError('NOT_FOUND', 'Prenda no encontrada.', 404);
+    if (error instanceof DatabaseError && error.code === '23505') throw new CoreError('CONFLICT', 'Ya existe una prenda con ese identificador (slug) o una variante repetida.', 409);
+    throw error;
   }
-  await supabase(`core_commerce_variants?restaurant_id=eq.${filter(restaurantId)}&product_id=eq.${filter(id)}`, {method: 'DELETE', prefer: 'return=minimal'});
-  await supabase('core_commerce_variants', {method: 'POST', body: product.variants.map(variant => ({restaurant_id: restaurantId, product_id: id, sku: variant.sku, color: variant.color, color_value: variant.colorValue, size: variant.size, stock: variant.stock, active: variant.active}))});
   return (await commerceCatalog(restaurantId)).products.find(row => row.id === id)!;
 }
 
+const contentKeys: (keyof CommerceContent)[] = ['heroEyebrow', 'heroTitle', 'heroEmphasis', 'heroDescription', 'studioCopy', 'shippingNote'];
+
 export async function commerceSaveContent(restaurantId: string, content: CommerceContent, settings: CommerceSettings) {
-  if (!content || !settings || settings.currency !== 'ARS' || !Number.isSafeInteger(settings.deliveryFee) || settings.deliveryFee < 0 || settings.deliveryFee > 1_000_000) throw new CoreError('INVALID_INPUT', 'La configuración no es válida.', 400);
-  await supabase(`core_commerce_content?restaurant_id=eq.${filter(restaurantId)}`, {method: 'PATCH', body: {content, settings, updated_at: new Date().toISOString()}});
+  const validContent = content && typeof content === 'object' && contentKeys.every(key => typeof content[key] === 'string' && content[key].length <= 2_000);
+  const validSettings = settings && typeof settings === 'object' && settings.currency === 'ARS' && typeof settings.storeName === 'string' && settings.storeName.trim().length > 0 && settings.storeName.length <= 120
+    && typeof settings.pickupEnabled === 'boolean' && typeof settings.deliveryEnabled === 'boolean' && Number.isSafeInteger(settings.deliveryFee) && settings.deliveryFee >= 0 && settings.deliveryFee <= 1_000_000;
+  if (!validContent || !validSettings) throw new CoreError('INVALID_INPUT', 'La configuración no es válida.', 400);
+  // Persist only the known keys: the column is free-form jsonb and must not become a dumping ground.
+  const clean = {content: Object.fromEntries(contentKeys.map(key => [key, content[key].trim()])), settings: {storeName: settings.storeName.trim(), currency: 'ARS', pickupEnabled: settings.pickupEnabled, deliveryEnabled: settings.deliveryEnabled, deliveryFee: settings.deliveryFee}};
+  await supabase(`core_commerce_content?restaurant_id=eq.${filter(restaurantId)}`, {method: 'PATCH', body: {...clean, updated_at: new Date().toISOString()}});
   return commerceCatalog(restaurantId);
 }
 
 export async function commerceDashboard(restaurantId: string) {
-  const [catalog, orders, customers] = await Promise.all([commerceCatalog(restaurantId), commerceListOrders(restaurantId), supabase<{id: string}[]>(`core_commerce_customers?restaurant_id=eq.${filter(restaurantId)}&select=id`)]);
-  return {products: catalog.products.length, activeProducts: catalog.products.filter(product => product.active).length, customers: customers.length, orders: orders.length, revenue: orders.filter(order => order.status !== 'cancelled').reduce((sum, order) => sum + order.total, 0), recentOrders: orders.slice(0, 5)};
+  // Aggregated in SQL: the previous version computed revenue and counts from the latest 500 orders only.
+  return rpc<{products: number; activeProducts: number; customers: number; orders: number; revenue: number; recentOrders: CommerceOrder[]}>('core_commerce_dashboard', {p_restaurant: restaurantId});
 }

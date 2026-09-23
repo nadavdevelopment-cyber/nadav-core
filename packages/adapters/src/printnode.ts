@@ -1,7 +1,7 @@
-import {randomBytes} from 'node:crypto';
-import type {Order} from '@nadav/core';
+import {randomBytes, randomUUID} from 'node:crypto';
+import {isUuid, notFound, type Order} from '@nadav/core';
 import {openSecret, sealSecret} from './crypto.ts';
-import {rpc, supabase} from './supabase.ts';
+import {filterValue, rpc, supabase} from './supabase.ts';
 
 export type Printer = {id: number; name: string; computer?: {name?: string}};
 type PrintSettings = {restaurant_id: string; printer_id: number | null; paper: '58' | '80'; auto_enabled: boolean; api_key_ciphertext: string | null};
@@ -36,7 +36,7 @@ export async function connectPrintNode(restaurantId: string, key: string) {
 }
 
 async function connection(restaurantId: string) {
-  const rows = await supabase<PrintSettings[]>(`core_print_settings?restaurant_id=eq.${restaurantId}&select=*`);
+  const rows = await supabase<PrintSettings[]>(`core_print_settings?restaurant_id=eq.${filterValue(restaurantId)}&select=*`);
   const row = rows[0];
   if (!row?.api_key_ciphertext) throw new Error('PrintNode is not connected.');
   return {row, key: openSecret(row.api_key_ciphertext, restaurantId, 'printnode')};
@@ -46,15 +46,16 @@ export async function selectPrinter(restaurantId: string, printerId: number, pap
   const {key} = await connection(restaurantId);
   const printers = await listPrinters(key);
   if (!printers.some(printer => printer.id === printerId)) throw new Error('Printer does not belong to this PrintNode account.');
-  await supabase(`core_print_settings?restaurant_id=eq.${restaurantId}`, {method: 'PATCH', prefer: 'return=minimal', body: {printer_id: printerId, paper, auto_enabled: auto, updated_at: new Date().toISOString()}});
+  await supabase(`core_print_settings?restaurant_id=eq.${filterValue(restaurantId)}`, {method: 'PATCH', prefer: 'return=minimal', body: {printer_id: printerId, paper, auto_enabled: auto, updated_at: new Date().toISOString()}});
 }
 
 export async function disconnectPrintNode(restaurantId: string) {
-  await supabase(`core_print_settings?restaurant_id=eq.${restaurantId}`, {method: 'PATCH', prefer: 'return=minimal', body: {api_key_ciphertext: null, printer_id: null, auto_enabled: false, updated_at: new Date().toISOString()}});
+  await supabase(`core_print_settings?restaurant_id=eq.${filterValue(restaurantId)}`, {method: 'PATCH', prefer: 'return=minimal', body: {api_key_ciphertext: null, printer_id: null, auto_enabled: false, updated_at: new Date().toISOString()}});
 }
 
-export function receiptText(order: Order, restaurantName: string) {
-  const lines = [restaurantName, `PEDIDO #${order.number}`, new Date(order.createdAt).toLocaleString('es-AR'), `Cliente: ${order.customer.name}`, `Teléfono: ${order.customer.phone}`, `Modalidad: ${order.mode === 'delivery' ? 'Delivery' : 'Retiro'}`];
+export function receiptText(order: Order, restaurantName: string, timeZone = 'America/Argentina/Buenos_Aires') {
+  // Servers usually run in UTC: without an explicit time zone the ticket would show the wrong hour.
+  const lines = [restaurantName, `PEDIDO #${order.number}`, new Date(order.createdAt).toLocaleString('es-AR', {timeZone, hour12: false}), `Cliente: ${order.customer.name}`, `Teléfono: ${order.customer.phone}`, `Modalidad: ${order.mode === 'delivery' ? 'Delivery' : 'Retiro'}`];
   if (order.address) lines.push(`Dirección: ${order.address}`);
   lines.push('--------------------------------');
   for (const item of order.items) {
@@ -92,17 +93,32 @@ export async function testPrint(restaurantId: string) {
   return request<number>(key, '/printjobs', {method: 'POST', idempotencyKey: `test-${restaurantId}-${randomBytes(16).toString('hex')}`, body: {printerId: row.printer_id, title: 'NADAV Core - prueba', contentType: 'pdf_base64', content: receiptPdf('NADAV Core\nImpresión de prueba\nLa impresora está conectada.', row.paper), source: 'NADAV Core'}});
 }
 
-type ClaimedJob = {id: string; restaurant_id: string; printer_id: number; paper: '58' | '80'; order: Order; restaurant_name: string; idempotency_key: string; api_key_ciphertext: string};
+type ClaimedJob = {id: string; restaurant_id: string; printer_id: number; paper: '58' | '80'; order: Order; restaurant_name: string; time_zone?: string | null; idempotency_key: string; api_key_ciphertext: string};
 export async function dispatchPrintJob(jobId: string) {
   const job = await rpc<ClaimedJob | null>('core_claim_print_job', {p_id: jobId});
   if (!job) return false;
   try {
     const key = openSecret(job.api_key_ciphertext, job.restaurant_id, 'printnode');
-    const remote = await request<number>(key, '/printjobs', {method: 'POST', idempotencyKey: job.idempotency_key, body: {printerId: job.printer_id, title: `${job.restaurant_name} - pedido #${job.order.number}`, contentType: 'pdf_base64', content: receiptPdf(receiptText(job.order, job.restaurant_name), job.paper), source: 'NADAV Core'}});
-    await supabase(`core_print_jobs?id=eq.${job.id}&status=eq.processing`, {method: 'PATCH', prefer: 'return=minimal', body: {status: 'submitted', remote_job_id: remote, updated_at: new Date().toISOString()}});
+    const remote = await request<number>(key, '/printjobs', {method: 'POST', idempotencyKey: job.idempotency_key, body: {printerId: job.printer_id, title: `${job.restaurant_name} - pedido #${job.order.number}`, contentType: 'pdf_base64', content: receiptPdf(receiptText(job.order, job.restaurant_name, job.time_zone ?? undefined), job.paper), source: 'NADAV Core'}});
+    await supabase(`core_print_jobs?id=eq.${filterValue(job.id)}&status=eq.processing`, {method: 'PATCH', prefer: 'return=minimal', body: {status: 'submitted', remote_job_id: remote, updated_at: new Date().toISOString()}});
     return true;
   } catch (error) {
-    await supabase(`core_print_jobs?id=eq.${job.id}&status=eq.processing`, {method: 'PATCH', prefer: 'return=minimal', body: {status: 'failed', error_code: error instanceof Error ? error.message.slice(0, 120) : 'PRINT_ERROR', updated_at: new Date().toISOString()}}).catch(() => undefined);
+    await supabase(`core_print_jobs?id=eq.${filterValue(job.id)}&status=eq.processing`, {method: 'PATCH', prefer: 'return=minimal', body: {status: 'failed', error_code: error instanceof Error ? error.message.slice(0, 120) : 'PRINT_ERROR', updated_at: new Date().toISOString()}}).catch(() => undefined);
     return false;
   }
+}
+
+/** Dispatches the automatic print job of an order, if one is queued. Safe to call for any order: it is a no-op when there is none. */
+export async function dispatchAutoPrint(restaurantId: string, orderId: string) {
+  const jobs = await supabase<{id: string}[]>(`core_print_jobs?restaurant_id=eq.${filterValue(restaurantId)}&order_id=eq.${filterValue(orderId)}&kind=eq.auto&status=eq.pending&select=id`);
+  return jobs[0] ? dispatchPrintJob(jobs[0].id) : false;
+}
+
+/** Manual reprint: always a new, separate job (never deduplicated against the automatic one). */
+export async function reprintOrder(restaurantId: string, orderId: string) {
+  if (!isUuid(orderId)) throw notFound('Pedido no encontrado.');
+  const orders = await supabase<{id: string}[]>(`core_orders?restaurant_id=eq.${filterValue(restaurantId)}&id=eq.${filterValue(orderId)}&select=id`);
+  if (!orders[0]) throw notFound('Pedido no encontrado.');
+  const rows = await supabase<{id: string}[]>('core_print_jobs', {method: 'POST', body: {restaurant_id: restaurantId, order_id: orderId, kind: 'manual', status: 'pending', idempotency_key: `order-${orderId}-manual-${randomUUID()}`}});
+  return dispatchPrintJob(rows[0].id);
 }

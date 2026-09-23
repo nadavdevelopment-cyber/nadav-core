@@ -18,6 +18,7 @@
     "build:starter": "next build starters/nadav-restaurant-starter --webpack",
     "start": "next start apps/core-api --hostname 0.0.0.0",
     "typecheck": "tsc --noEmit",
+    "test:sql": "bash scripts/test-sql.sh",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
     "create:restaurant": "node scripts/create-restaurant.mjs"
   },

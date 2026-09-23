@@ -17,3 +17,10 @@ Cada restaurante conecta su propia cuenta PrintNode. No hay API key global.
 `PRINTNODE_TOKEN_ENCRYPTION_KEY`, generada con `openssl rand -base64 32`.
 
 Antes de producción probá una impresora física en 58/80 mm. La aceptación del job por PrintNode no garantiza que el papel haya salido; monitoreá también el cliente local y la impresora.
+
+## Cambios posteriores a la revisión
+
+- Los pedidos de Mercado Pago se imprimen al aprobarse el pago (el webhook dispara el trabajo); efectivo y transferencia, al crearse.
+- El ticket usa la zona horaria del restaurante y formato de 24 h.
+- Reimpresión manual: `POST /api/v1/admin/printnode` con `{"action":"reprint","orderId":"..."}` crea un trabajo `manual` nuevo y auditado.
+- Un trabajo trabado en `processing` por más de 5 minutos puede reclamarse de nuevo. Sigue faltando un despachador periódico para reintentar trabajos `failed`.

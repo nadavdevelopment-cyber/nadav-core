@@ -5,6 +5,7 @@ export * from './memory.ts';
 export * from './mercadopago.ts';
 export * from './printnode.ts';
 export * from './media.ts';
+export * from './session.ts';
 export * from './admin-auth.ts';
 export * from './commerce.ts';
 export * from './commerce-auth.ts';

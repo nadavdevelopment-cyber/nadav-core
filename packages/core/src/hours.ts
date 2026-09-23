@@ -14,7 +14,8 @@ export function isRestaurantOpen(config: RestaurantConfig, at = new Date()) {
   if (slot?.open) {
     const from = minutes(slot.from);
     const to = minutes(slot.to);
-    if (from <= to ? now >= from && now < to : now >= from) return true;
+    if (from === to) return true; // same "from" and "to" (e.g. 00:00-00:00) means open all day
+    if (from < to ? now >= from && now < to : now >= from) return true;
   }
   const previous = config.hours[keys[(keys.indexOf(day) + 6) % 7]];
   return Boolean(previous?.open && minutes(previous.from) > minutes(previous.to) && now < minutes(previous.to));

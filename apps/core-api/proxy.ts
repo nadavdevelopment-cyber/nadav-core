@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-function getAllowedOrigins() {
+function getAllowedOrigins(request: NextRequest) {
+  const adminOnly = request.nextUrl.pathname.startsWith('/api/v1/admin/');
   return [
     process.env.APP_ORIGIN,
-    ...(process.env.NADAV_CORE_ALLOWED_ORIGINS ?? '').split(','),
+    ...(adminOnly ? [] : (process.env.NADAV_CORE_ALLOWED_ORIGINS ?? '').split(',')),
   ]
     .map(value => value?.trim().replace(/\/$/, ''))
     .filter(Boolean) as string[];
@@ -31,7 +32,7 @@ function applyCors(response: NextResponse, origin: string | null) {
 export function proxy(request: NextRequest) {
   const rawOrigin = request.headers.get('origin');
   const origin = rawOrigin?.replace(/\/$/, '') ?? null;
-  const allowedOrigins = getAllowedOrigins();
+  const allowedOrigins = getAllowedOrigins(request);
 
   if (origin && !allowedOrigins.includes(origin)) {
     return NextResponse.json(

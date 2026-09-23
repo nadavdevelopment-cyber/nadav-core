@@ -15,7 +15,7 @@ function imageType(bytes: Uint8Array) {
   return null;
 }
 export function validMediaPath(restaurantId: string, path: string) {
-  return new RegExp(`^${restaurantId}/(logo|cover|product)/[0-9a-f-]{36}\\.(jpg|png|webp)$`, 'i').test(path);
+  return new RegExp(`^${restaurantId}/(logo|cover|product)/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(jpg|png|webp)$`, 'i').test(path);
 }
 export async function uploadMedia(restaurantId: string, kind: MediaKind, bytes: Uint8Array) {
   if (bytes.byteLength === 0 || bytes.byteLength > 2 * 1024 * 1024) throw new Error('Image must not exceed 2 MB.');

@@ -59,12 +59,7 @@ writeFileSync(packagePath, `${JSON.stringify(pkg, null, 2)}\n`);
 
 const configPath = resolve(destination, 'restaurant.config.ts');
 
-let config = readFileSync(configPath, 'utf8')
-  .replaceAll('new-restaurant', slug)
-  .replaceAll(
-    "'[http://localhost:3000](http://localhost:3000)'",
-    "'http://localhost:3000'"
-  );
+const config = readFileSync(configPath, 'utf8').replaceAll('new-restaurant', slug);
 
 writeFileSync(configPath, config);
 

@@ -1,7 +1,7 @@
 export type Money = number;
 export type FulfillmentMode = 'pickup' | 'delivery';
 export type PaymentMethod = 'cash' | 'transfer' | 'mercado_pago';
-export type PaymentStatus = 'pending' | 'approved' | 'rejected' | 'refunded';
+export type PaymentStatus = 'pending' | 'approved' | 'rejected' | 'refunded' | 'charged_back';
 export type OrderStatus = 'new' | 'confirmed' | 'preparing' | 'ready' | 'on_the_way' | 'delivered' | 'cancelled';
 
 export type DayHours = {open: boolean; from: string; to: string};
@@ -98,6 +98,12 @@ export type Order = Quote & {
   promotionCode?: string;
   notes: string;
   createdAt: string;
+};
+
+/** What an unauthenticated order lookup may reveal: no phone, email, address, notes or internal identifiers. */
+export type PublicOrder = Pick<Order, 'id' | 'number' | 'status' | 'paymentStatus' | 'paymentMethod' | 'mode' | 'subtotal' | 'discount' | 'deliveryFee' | 'total' | 'currency' | 'createdAt'> & {
+  customer: {name: string};
+  items: {name: string; quantity: number; lineTotal: Money; modifiers: {groupName: string; name: string}[]}[];
 };
 
 export type CatalogResponse = {

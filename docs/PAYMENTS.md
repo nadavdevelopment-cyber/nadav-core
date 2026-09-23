@@ -20,3 +20,10 @@ Core incluye únicamente Mercado Pago para cobrar pedidos. No incluye suscripcio
 - `MERCADOPAGO_WEBHOOK_SECRET`
 
 Generá la clave de cifrado con `openssl rand -base64 32`. Respaldala: perderla obliga a reconectar la cuenta.
+
+## Notas operativas
+
+- `NADAV_CORE_STOREFRONT_URL`: a dónde vuelve el cliente tras pagar (`/?order=<id>&restaurant=<slug>&payment=success|pending|failure`). Core no tiene página de pedido propia; si no se define se usa `APP_ORIGIN`.
+- Las notificaciones fuera de orden no degradan un pago aprobado (ver migración 0003).
+- Si una notificación no coincide con el pedido (monto, referencia) se audita como `payment.mismatch` y se responde 200 para que Mercado Pago no la reenvíe indefinidamente.
+- Una reserva de preferencia que quedó en `creating` por más de 2 minutos (request caído) se libera automáticamente al reintentar.

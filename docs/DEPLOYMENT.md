@@ -3,7 +3,7 @@
 ## Core API
 
 1. Crear un proyecto Supabase dedicado y backup inicial.
-2. Aplicar `0001_core_schema.sql`.
+2. Aplicar las migraciones en orden (`0001_core_schema.sql`, `0002_commerce_schema.sql` si usás Commerce, `0003_integrity_fixes.sql`). Programar `select public.core_purge_expired();` una vez por día.
 3. Insertar restaurante y catálogo; no usar el seed demo en producción.
 4. Configurar todas las variables server-only en el hosting.
 5. Desplegar `apps/core-api` con Node.js 22+.
@@ -17,6 +17,7 @@ Desplegar cada app desde `apps/<cliente>` como proyecto independiente. Solo nece
 ## Checklist
 
 - `NADAV_CORE_DEMO_MODE=false`
+- `NADAV_CORE_STOREFRONT_URL` apuntando al storefront (retorno de Mercado Pago)
 - HTTPS y dominio final en `APP_ORIGIN`
 - allowlist exacta de todos los storefronts
 - claves de cifrado respaldadas

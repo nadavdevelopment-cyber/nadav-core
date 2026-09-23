@@ -5,6 +5,8 @@ export interface CoreRepository {
   catalog(restaurantId: string): Promise<Catalog | null>;
   placeOrder(command: PlaceOrderCommand): Promise<{order: Order; created: boolean}>;
   order(restaurantId: string, orderId: string): Promise<Order | null>;
+  /** Lets the API replay an already accepted order before re-validating hours, stock or prices. */
+  orderByIdempotencyKey(restaurantId: string, idempotencyKey: string): Promise<Order | null>;
   listOrders(restaurantId: string): Promise<Order[]>;
   replaceCatalog(restaurantId: string, expectedRevision: number, catalog: Catalog): Promise<Catalog | null>;
   updateOrderStatus(restaurantId: string, orderId: string, status: OrderStatus): Promise<Order>;
