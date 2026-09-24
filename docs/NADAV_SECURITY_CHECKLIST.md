@@ -135,6 +135,8 @@ Para cada tabla sensible de Core y Commerce:
 - No se permiten URLs de imagen peligrosas (`javascript:`, protocol-relative no confiable, etc.).
 - Uploads no aceptan tipos arbitrarios ejecutables.
 
+✅ Verificado con evidencia (2026-09-23): `uploadMedia()` en `packages/adapters/src/media.ts` siempre escribe bajo `${restaurantId}/${kind}/${uuid}.ext` usando el `restaurantId` del contexto autenticado (nunca uno provisto por el cliente), y valida magic bytes + tamaño máximo 2MB antes de subir. `commerceSaveProduct()` en `packages/adapters/src/commerce.ts` además exige, vía `commerceImageAllowed()` + `validMediaPath()`, que cualquier URL de imagen que un producto referencie sea local o pertenezca exactamente al `restaurantId` autenticado — un admin de Commerce no puede hacer que su catálogo apunte a la media de otro tenant. Food's `safeImage()` en `packages/core/src/catalog.ts` es más laxo (acepta cualquier `https://`), pero esa es una decisión de producto (Food no restringe imágenes a un bucket propio), no un agujero de aislamiento entre tenants.
+
 ## 4. Secretos y credenciales
 
 - No hay `.env`, `.env.local` ni backups de secretos commiteados.
@@ -337,7 +339,7 @@ Riesgos conocidos:
 
 Riesgo conocido:
 
-- `0002_commerce_schema.sql` contiene seed de Vera Studio. Para nuevas instalaciones, recomendar separar seed de migración. ⚠️ P2/P1 según estrategia de provisioning.
+✅ Resuelto (2026-09-23): el seed de Vera Studio se extrajo de `0002_commerce_schema.sql` a `supabase/seed/0002_vera_studio.sql` (mismo patrón que `0001_demo_restaurant.sql`). Una instalación nueva que corra las migraciones en orden ya no siembra el catálogo de Vera Studio; ese seed sólo debe correrse manualmente al reprovisionar el proyecto propio de Vera Studio.
 
 ## 16. Backups y recuperación
 
@@ -359,7 +361,7 @@ Riesgo conocido:
 
 Riesgos conocidos:
 
-- `listOrders` puede seguir limitado a un máximo fijo: ⚠️ P2 antes de alto volumen.
+✅ Resuelto (2026-09-23) para Food: `CoreRepository.listOrders` (interfaz en `packages/core/src/repository.ts`, implementaciones en `supabase.ts` y `memory.ts`) ahora acepta `{limit, before}`, cachea el límite entre 1 y 100 (default 50) del lado del repositorio (nunca confía en lo que pida el caller), y pagina hacia atrás por `createdAt`. `apps/core-api/app/api/v1/admin/orders/route.ts` expone `?before=`/`?limit=` y devuelve `nextCursor`. No hay UI de "Pedidos" todavía (el link en `AdminShell` es un placeholder `#pedidos`), así que este cambio no rompe nada existente. `commerceListOrders` (Commerce/Vera Studio, en `packages/adapters/src/commerce.ts`) recibió el mismo parámetro `before` de forma aditiva, pero se mantuvo el límite default en 500 porque Vera Studio sí tiene una página de pedidos real (`apps/vera-studio/app/admin/pedidos`) que no se pudo inspeccionar en esta pasada (archivo a más de 7 carpetas de profundidad del folder conectado) — bajar el default ahí sin ver esa página podía romper lo que ya ve el cliente. Si se quiere paginación real en Commerce, conectar `apps/core-api/app/api/v1/commerce/admin` desde la app de escritorio y actualizar `commerce/admin/orders/route.ts` + esa página para pasar `before`.
 
 ## 18. Rate limiting y proxy trust
 
@@ -450,8 +452,8 @@ Aunque todo lo demás pase, revisar siempre estos puntos y marcar su estado actu
 5. Cancelar pedido MP pagado no implica automáticamente refund de negocio.
 6. Stock Food sigue viviendo en JSON del catálogo; puede generar conflictos de revisión con alto volumen/admin de edición.
 7. Commerce `card` no debe presentarse como pago real si no hay gateway implementado.
-8. Seed de Vera Studio sigue dentro de `0002` si no fue separado posteriormente.
-9. `listOrders` necesita paginación real antes de alto volumen.
+8. ✅ Resuelto (2026-09-23) — Seed de Vera Studio separado a `supabase/seed/0002_vera_studio.sql`.
+9. ✅ Resuelto (2026-09-23) para Food (`listOrders` con `limit`/`before`, capado 1-100). Commerce (`commerceListOrders`) tiene el mismo parámetro disponible pero mantiene el límite en 500 hasta poder revisar la página real de pedidos de Vera Studio.
 10. Rate limit basado en `X-Forwarded-For` depende de proxy confiable.
 11. Refresh concurrente de token Mercado Pago debe revisarse si aparecen carreras reales.
 12. Probar Mercado Pago sandbox y PrintNode físico sigue siendo obligatorio antes de confiar en esos límites externos.
