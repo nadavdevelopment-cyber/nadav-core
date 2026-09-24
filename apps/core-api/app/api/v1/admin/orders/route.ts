@@ -6,7 +6,13 @@ export async function GET(request: Request) {
   try {
     requireAdmin(request);
     const context = await coreContext();
-    return Response.json({orders: await context.repository.listOrders(context.restaurantId)});
+    const params = new URL(request.url).searchParams;
+    const before = params.get('before') ?? undefined;
+    const limit = Math.min(Math.max(Math.trunc(Number(params.get('limit'))) || 50, 1), 100);
+    const orders = await context.repository.listOrders(context.restaurantId, {limit, before});
+    // nextCursor is only meaningful when a full page came back; a shorter page means there's nothing older left.
+    const nextCursor = orders.length === limit ? orders[orders.length - 1].createdAt : null;
+    return Response.json({orders, nextCursor});
   } catch (error) { return errorResponse(error); }
 }
 

@@ -77,8 +77,12 @@ export class SupabaseCoreRepository implements CoreRepository {
     const rows = await supabase<{data: Order}[]>(`core_orders?restaurant_id=eq.${filterValue(restaurantId)}&idempotency_key=eq.${filterValue(key)}&select=data`);
     return rows[0]?.data ?? null;
   }
-  async listOrders(restaurantId: string) {
-    const rows = await supabase<{data: Order}[]>(`core_orders?restaurant_id=eq.${filterValue(restaurantId)}&select=data&order=created_at.desc&limit=500`);
+  async listOrders(restaurantId: string, options: {limit?: number; before?: string} = {}) {
+    // Cap it ourselves: a caller (or a bug in one) asking for an unbounded page must not turn into an unbounded response.
+    const limit = Math.min(Math.max(Math.trunc(options.limit ?? 50) || 50, 1), 100);
+    const params = [`restaurant_id=eq.${filterValue(restaurantId)}`, 'select=data', 'order=created_at.desc', `limit=${limit}`];
+    if (options.before && !Number.isNaN(Date.parse(options.before))) params.push(`created_at=lt.${filterValue(options.before)}`);
+    const rows = await supabase<{data: Order}[]>(`core_orders?${params.join('&')}`);
     return rows.map(row => row.data);
   }
   async replaceCatalog(restaurantId: string, expectedRevision: number, catalog: Catalog) {

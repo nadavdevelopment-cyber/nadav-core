@@ -39,7 +39,17 @@ export class MemoryCoreRepository implements CoreRepository {
   }
   async order(restaurantId: string, orderId: string) { return structuredClone(this.orders.get(`${restaurantId}:${orderId}`) ?? null); }
   async orderByIdempotencyKey(restaurantId: string, key: string) { return structuredClone(this.orders.get(`${restaurantId}:${key}`) ?? null); }
-  async listOrders(restaurantId: string) { return [...this.orders.entries()].filter(([key]) => key.startsWith(`${restaurantId}:`)).map(([, order]) => order).filter((order, index, rows) => rows.findIndex(candidate => candidate.id === order.id) === index).map(order => structuredClone(order)); }
+  async listOrders(restaurantId: string, options: {limit?: number; before?: string} = {}) {
+    const limit = Math.min(Math.max(Math.trunc(options.limit ?? 50) || 50, 1), 100);
+    const all = [...this.orders.entries()]
+      .filter(([key]) => key.startsWith(`${restaurantId}:`))
+      .map(([, order]) => order)
+      .filter((order, index, rows) => rows.findIndex(candidate => candidate.id === order.id) === index)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    const before = options.before && !Number.isNaN(Date.parse(options.before)) ? options.before : undefined;
+    const page = before ? all.filter(order => order.createdAt < before) : all;
+    return page.slice(0, limit).map(order => structuredClone(order));
+  }
   async replaceCatalog(restaurantId: string, expectedRevision: number, catalog: Catalog) {
     if (restaurantId !== this.data.restaurantId || expectedRevision !== this.data.revision) return null;
     Object.assign(this.data, structuredClone(catalog), {revision: expectedRevision + 1});

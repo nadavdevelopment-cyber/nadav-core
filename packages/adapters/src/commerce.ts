@@ -60,8 +60,13 @@ export async function commerceMemberRole(restaurantId: string, userId: string) {
   return rows[0]?.role ?? null;
 }
 
-export async function commerceListOrders(restaurantId: string) {
-  const rows = await supabase<{data: CommerceOrder}[]>(`core_commerce_orders?restaurant_id=eq.${filter(restaurantId)}&select=data&order=created_at.desc&limit=500`);
+// Default limit kept at 500 to match current callers exactly (no live page passes `before` yet).
+// `before` (an order's createdAt) lets a future "cargar más" page past the first 500 without a behavior change today.
+export async function commerceListOrders(restaurantId: string, options: {limit?: number; before?: string} = {}) {
+  const limit = Math.min(Math.max(Math.trunc(options.limit ?? 500) || 500, 1), 500);
+  const params = [`restaurant_id=eq.${filter(restaurantId)}`, 'select=data', 'order=created_at.desc', `limit=${limit}`];
+  if (options.before && !Number.isNaN(Date.parse(options.before))) params.push(`created_at=lt.${filter(options.before)}`);
+  const rows = await supabase<{data: CommerceOrder}[]>(`core_commerce_orders?${params.join('&')}`);
   return rows.map(row => row.data);
 }
 export async function commerceOrder(restaurantId: string, orderId: string) {

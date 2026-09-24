@@ -95,7 +95,8 @@ test('sameCheckout tells a retry from a reused idempotency key', () => {
 
 test('public order view hides contact data and internals', () => {
   const view = JSON.stringify(publicOrder({...placed(), address: 'Calle Falsa 123', notes: 'timbre roto'}));
-  for (const secret of ['221', 'ada@example.com', 'Calle Falsa', 'timbre', key, restaurantId]) assert.equal(view.includes(secret), false, secret);
+  // Full normalized phone, not just the area code: a 3-digit substring can coincidentally match part of the order's random UUID and fail the test for no real reason.
+  for (const secret of ['2215550000', 'ada@example.com', 'Calle Falsa', 'timbre', key, restaurantId]) assert.equal(view.includes(secret), false, secret);
   assert.match(view, /"name":"Ada"/);
 });
 
