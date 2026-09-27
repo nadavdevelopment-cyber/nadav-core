@@ -24,7 +24,7 @@ export function ProductDialog({product, onClose, onAdd}: {product: Product; onCl
     const count = selected[group.id]?.length ?? 0;
     return count >= group.min && count <= group.max;
   });
-  const isDrink = product.categoryId === 'cat-drinks';
+  const isDrink = /drink|bebida/i.test(product.categoryId);
   const unit = useMemo(() => {
     const extras = product.modifierGroups.reduce((sum, group) => sum + (selected[group.id] ?? []).reduce((groupSum, optionId) => groupSum + (group.options.find(option => option.id === optionId)?.price ?? 0), 0), 0);
     return (product.promotionalPrice ?? product.price) + extras;
@@ -71,7 +71,7 @@ export function ProductDialog({product, onClose, onAdd}: {product: Product; onCl
           <div className="quantity-control" aria-label="Cantidad">
             <button type="button" onClick={() => setQuantity(value => Math.max(1, value - 1))} aria-label="Restar uno">−</button>
             <output aria-live="polite">{quantity}</output>
-            <button type="button" onClick={() => setQuantity(value => Math.min(99, value + 1))} aria-label="Sumar uno">+</button>
+            <button type="button" onClick={() => setQuantity(value => Math.min(99, product.stock ?? 99, value + 1))} disabled={quantity >= Math.min(99, product.stock ?? 99)} aria-label="Sumar uno">+</button>
           </div>
           <button className="primary-button primary-button--wide" type="button" onClick={add} disabled={!valid}><span>AGREGAR AL PEDIDO</span><strong>{money(unit * quantity)}</strong></button>
         </div>

@@ -945,3 +945,36 @@ button.product-card__visual[type="button"] .product-visual img {
   border-radius: 0 !important;
   overflow: visible !important;
 }
+
+/* Clearer ordering cues */
+.hero__wordmark {display: none}
+.hero__copy {padding-bottom: 74px}
+.hero__copy > .hero__price {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 24px;
+  padding: 8px 12px;
+  border-left: 3px solid var(--brand-red);
+  background: rgba(255,255,255,.34);
+  color: var(--charcoal);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+.hero__price strong {color: var(--brand-red); font-family: var(--serif); font-size: 20px; font-style: italic}
+.category-nav a:focus-visible {background: var(--charcoal); color: var(--cream-light)}
+.menu-empty {margin-top: 38px; padding: 45px 30px; border: 1px solid var(--line); background: var(--cream-light); text-align: center}
+.menu-empty h3 {margin: 0 0 10px; font-family: var(--display); font-size: clamp(30px, 4vw, 48px); text-transform: uppercase}
+.menu-empty p {margin: 0; color: var(--muted); line-height: 1.5}
+.cart-drawer__footer > .cart-minimum {margin: 12px 0; color: var(--brand-red); font-size: 12px; font-weight: 800; line-height: 1.4}
+.quantity-control button:disabled {opacity: .35; cursor: not-allowed}
+.social-strip > div:first-child > p {max-width: 330px; margin: 0; color: var(--muted); font-size: 16px; line-height: 1.5}
+
+@media (max-width: 620px) {
+  .hero h1 {line-height: .86}
+  .hero h1 em {margin: .09em 0 .04em .05em; font-size: .48em; line-height: 1; transform: rotate(-2deg)}
+  .hero__copy > .hero__price {margin-bottom: 18px; font-size: 12px}
+  .hero__price strong {font-size: 18px}
+  .hero__copy > p:not(.hero__price) {max-width: 340px}
+}

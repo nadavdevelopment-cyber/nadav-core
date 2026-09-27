@@ -18,6 +18,7 @@ export function CheckoutDialog({menu, lines, busy, error, onBack, onClose, onSub
   ].filter((option): option is {value: PaymentMethod; label: string; detail: string} => option !== null), [menu]);
   const [payment, setPayment] = useState<PaymentMethod>(payments[0]?.value ?? 'cash');
   const subtotal = lines.reduce((sum, line) => sum + unitPrice(line) * line.quantity, 0);
+  const belowMinimum = subtotal < menu.ordering.minimumOrder;
   const dialogRef = useDialogFocus<HTMLElement>(onClose, !busy);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -80,16 +81,17 @@ export function CheckoutDialog({menu, lines, busy, error, onBack, onClose, onSub
           <span className="eyebrow">RESUMEN</span><h3>Tu pedido</h3>
           <div className="checkout-summary__lines">{lines.map(line => <div key={line.key}><span><b>{line.quantity}×</b> {line.product.name}<small>{lineLabel(line)}</small></span><strong>{money(unitPrice(line) * line.quantity)}</strong></div>)}</div>
           <div className="checkout-summary__total"><span>Subtotal estimado</span><strong>{money(subtotal)}</strong></div>
+          {belowMinimum ? <p className="form-error" role="status">El mínimo de compra es {money(menu.ordering.minimumOrder)}. Sumá productos antes de confirmar.</p> : null}
           <p>El total definitivo, envío y promociones los valida BurgerHouse al confirmar.</p>
           {error ? <p className="form-error" role="alert">{error}</p> : null}
           {!payments.length ? <p className="form-error" role="alert">No hay medios de pago disponibles en este momento.</p> : null}
-          <button className="primary-button primary-button--wide checkout-submit--desktop" type="submit" disabled={busy || !lines.length || !payments.length}>{busy ? 'CONFIRMANDO…' : 'CONFIRMAR PEDIDO'}</button>
+          <button className="primary-button primary-button--wide checkout-submit--desktop" type="submit" disabled={busy || !lines.length || !payments.length || belowMinimum}>{busy ? 'CONFIRMANDO…' : 'CONFIRMAR PEDIDO'}</button>
           <small className="secure-copy">Revisamos precios y disponibilidad antes de crear tu pedido.</small>
         </aside>
       </form>
       <div className="checkout-mobile-bar">
         <span><small>SUBTOTAL ESTIMADO</small><strong>{money(subtotal)}</strong></span>
-        <button className="primary-button" type="submit" form="burgerhouse-checkout" disabled={busy || !lines.length || !payments.length}>{busy ? 'CONFIRMANDO…' : 'CONFIRMAR'} <span aria-hidden="true">→</span></button>
+        <button className="primary-button" type="submit" form="burgerhouse-checkout" disabled={busy || !lines.length || !payments.length || belowMinimum}>{busy ? 'CONFIRMANDO…' : 'CONFIRMAR'} <span aria-hidden="true">→</span></button>
       </div>
     </section>
   </div>;

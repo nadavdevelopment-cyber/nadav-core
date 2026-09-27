@@ -62,3 +62,7 @@ node scripts/assign-commerce-admin.mjs
 ```
 
 El script usa `SUPABASE_SERVICE_ROLE_KEY` sólo localmente para asignar un usuario ya creado en Supabase Auth. En Vercel configurá `SUPABASE_ANON_KEY` para el login de administradores y agregá el origen público de Vera a `NADAV_CORE_ALLOWED_ORIGINS`. El storefront usa `NEXT_PUBLIC_NADAV_CORE_URL` y `NEXT_PUBLIC_NADAV_RESTAURANT_SLUG=vera-studio`.
+
+## BurgerHouse
+
+BurgerHouse usa el restaurante persistido `burgerhouse` (ID `d8b28790-af37-49fe-ae39-741b96226e98`). En el proyecto Vercel de `apps/core-api`, configurá `NADAV_CORE_DEMO_MODE=false`, `NADAV_CORE_RESTAURANT_ID` con ese ID, `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY`; `NADAV_CORE_ALLOWED_ORIGINS` debe incluir `https://burgerhouse-seven.vercel.app` junto a los demás orígenes vigentes. En el proyecto de `apps/burgerhouse`, `NEXT_PUBLIC_NADAV_CORE_URL` debe apuntar a la API pública de Core. El storefront fija el slug `burgerhouse` para evitar que una variable heredada de la demo lo desvíe a `demo-restaurant`.

@@ -1,7 +1,7 @@
 'use client';
 
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {createNadavClient} from '@nadav/sdk';
+import {createNadavClient, NadavApiError} from '@nadav/sdk';
 import type {CatalogResponse, CartSelection, CheckoutInput, Order, Product} from '@nadav/core';
 import {BrandMark, BurgerSeal, HeroBurger, HeroBurgerPhoto, Star} from './BrandArtwork';
 import {CartDrawer} from './CartDrawer';
@@ -32,15 +32,18 @@ export function Storefront({config}: {config: StorefrontConfig}) {
   const [completed, setCompleted] = useState<CompletedOrder | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [cartFeedback, setCartFeedback] = useState('');
+  const [catalogAttempt, setCatalogAttempt] = useState(0);
   const submission = useRef<{fingerprint: string; key: string} | null>(null);
 
   useEffect(() => {
     let mounted = true;
     api.catalog.get()
-      .then(value => { if (mounted) setMenu(value); })
-      .catch(() => { if (mounted) setLoadError('No pudimos cargar el menú. Probá de nuevo en un ratito.'); });
+      .then(value => { if (mounted) { setMenu(value); setLoadError(''); } })
+      .catch(error => { if (mounted) setLoadError(error instanceof NadavApiError && error.status >= 500
+        ? 'El menú no está disponible en este momento. Estamos trabajando para volver a mostrarlo.'
+        : 'No pudimos conectar con el menú. Revisá tu conexión e intentá otra vez.'); });
     return () => { mounted = false; };
-  }, [api]);
+  }, [api, catalogAttempt]);
 
   const overlayOpen = Boolean(selectedProduct || cartOpen || checkoutOpen || completed);
   useEffect(() => {
@@ -66,9 +69,10 @@ export function Storefront({config}: {config: StorefrontConfig}) {
     const key = cartKey(product, selections, notes);
     setCart(lines => {
       const existing = lines.find(line => line.key === key);
+      const limit = Math.min(99, product.stock ?? 99);
       return existing
-        ? lines.map(line => line.key === key ? {...line, quantity: Math.min(99, line.quantity + quantity)} : line)
-        : [...lines, {key, product, quantity, selections, notes}];
+        ? lines.map(line => line.key === key ? {...line, quantity: Math.min(limit, line.quantity + quantity)} : line)
+        : [...lines, {key, product, quantity: Math.min(limit, quantity), selections, notes}];
     });
     submission.current = null;
     setCartFeedback(`${quantity} ${quantity === 1 ? 'producto agregado' : 'productos agregados'} al pedido`);
@@ -78,7 +82,7 @@ export function Storefront({config}: {config: StorefrontConfig}) {
 
   function updateQuantity(key: string, quantity: number) {
     if (quantity < 1) return removeLine(key);
-    setCart(lines => lines.map(line => line.key === key ? {...line, quantity: Math.min(99, quantity)} : line));
+    setCart(lines => lines.map(line => line.key === key ? {...line, quantity: Math.min(99, line.product.stock ?? 99, quantity)} : line));
     submission.current = null;
   }
 
@@ -108,15 +112,19 @@ export function Storefront({config}: {config: StorefrontConfig}) {
 
   if (!menu) return <main className={`loading-screen${loadError ? ' loading-screen--error' : ''}`} aria-live="polite" aria-busy={!loadError}>
     <BrandMark/>
-    {loadError ? <><span className="loading-screen__status">NO PUDIMOS CARGAR</span><h1>La plancha sigue encendida.</h1><p>{loadError}</p><button type="button" className="primary-button" onClick={() => location.reload()}>VOLVER A INTENTAR</button></> : <><div className="loading-burger" aria-hidden="true"><i/><i/><i/></div><p>Prendiendo la plancha…</p></>}
+    {loadError ? <><span className="loading-screen__status">MENÚ NO DISPONIBLE</span><h1>La plancha sigue encendida.</h1><p>{loadError}</p><button type="button" className="primary-button" onClick={() => { setLoadError(''); setCatalogAttempt(attempt => attempt + 1); }}>VOLVER A INTENTAR</button></> : <><div className="loading-burger" aria-hidden="true"><i/><i/><i/></div><p>Preparando el menú…</p></>}
   </main>;
+
+  const burgerCategory = menu.catalog.categories.find(category => /burger|hamburguesa/i.test(category.name));
+  const burgerPrices = menu.catalog.products.filter(product => product.categoryId === burgerCategory?.id && product.available && product.stock !== 0).map(product => product.promotionalPrice ?? product.price);
+  const startingPrice = burgerPrices.length ? Math.min(...burgerPrices) : null;
 
   return <div className="site" style={{'--brand-red': config.presentation.accent, '--cream': config.presentation.background} as React.CSSProperties}>
     <a className="skip-link" href="#menu">Saltar al menú</a>
     <header className="site-header">
       <a className="header-brand" href="#top" aria-label="BurgerHouse, inicio"><BrandMark compact/></a>
       <nav className="desktop-nav" aria-label="Navegación principal">
-        <a href="#menu">Menú</a><a href="#nosotros">Nosotros</a><a href="#horarios">Horarios</a>
+        <a href="#menu">Menú</a><a href="#nosotros">Nosotros</a><a href="#horarios">Info</a>
       </nav>
       <div className="header-actions">
         <a className="header-order" href="#menu">PEDIR AHORA</a>
@@ -134,7 +142,7 @@ export function Storefront({config}: {config: StorefrontConfig}) {
         <nav className="mobile-nav" id="mobile-navigation" aria-label="Navegación móvil">
           <a href="#menu" onClick={() => setMobileMenuOpen(false)}><span>01</span> Menú</a>
           <a href="#nosotros" onClick={() => setMobileMenuOpen(false)}><span>02</span> Nosotros</a>
-          <a href="#horarios" onClick={() => setMobileMenuOpen(false)}><span>03</span> Horarios</a>
+          <a href="#horarios" onClick={() => setMobileMenuOpen(false)}><span>03</span> Info</a>
           <a className="mobile-nav__order" href="#menu" onClick={() => setMobileMenuOpen(false)}>PEDIR AHORA <span aria-hidden="true">↗</span></a>
         </nav>
       </> : null}
@@ -147,8 +155,9 @@ export function Storefront({config}: {config: StorefrontConfig}) {
           <div className="hero__kicker"><Star/> <span>SMASHED FRESH · SIN VUELTAS</span> <Star/></div>
           <h1 id="hero-title"><span>BURGERS</span><em>QUE PEGAN</em><strong>DISTINTO.</strong></h1>
           <p>Carne bien dorada, queso fundido y pan suave. Hechas al momento, como tiene que ser.</p>
+          {startingPrice !== null ? <p className="hero__price">Smash desde <strong>{money(startingPrice)}</strong></p> : null}
           <div className="hero__actions"><a className="primary-button" href="#menu">PEDIR AHORA <span aria-hidden="true">↗</span></a><a className="secondary-button" href="#menu">VER MENÚ</a></div>
-          <div className="hero__note"><i aria-hidden="true"/><span>Delivery y retiro<br/><b>todos los días</b></span></div>
+          <div className="hero__note"><i aria-hidden="true"/><span>Delivery y retiro<br/><b>según disponibilidad</b></span></div>
         </div>
         <div className="hero__art">
           <span className="hero-sticker hero-sticker--top">100%<br/><b>SMASH</b></span>
@@ -168,6 +177,7 @@ export function Storefront({config}: {config: StorefrontConfig}) {
         <nav className="category-nav" aria-label="Categorías del menú">
           {menu.catalog.categories.map(category => <a href={`#category-${category.id}`} key={category.id}>{category.name}</a>)}
         </nav>
+        {!menu.catalog.products.some(product => product.available && product.stock !== 0) ? <div className="menu-empty"><h3>Estamos preparando el menú</h3><p>Volvé a visitarnos en un rato para elegir tu próxima burger.</p></div> : null}
         {menu.catalog.categories.map((category, categoryIndex) => {
           const products = menu.catalog.products.filter(product => product.categoryId === category.id);
           if (!products.length) return null;
@@ -190,19 +200,19 @@ export function Storefront({config}: {config: StorefrontConfig}) {
       </section>
 
       <section className="service-section" id="horarios">
-        <article><span className="service-icon" aria-hidden="true">↗</span><span className="eyebrow">DÓNDE</span><h3>Vení a buscarla</h3><p>{config.presentation.address}</p><a href={config.presentation.whatsapp}>¿Cómo llegar? →</a></article>
+        <article><span className="service-icon" aria-hidden="true">↗</span><span className="eyebrow">DÓNDE</span><h3>Vení a buscarla</h3><p>{config.presentation.address}</p>{config.presentation.whatsapp ? <a href={config.presentation.whatsapp}>¿Cómo llegar? →</a> : null}</article>
         <article className="service-section__red"><span className="service-icon" aria-hidden="true">◷</span><span className="eyebrow">CUÁNDO</span><h3>Plancha encendida</h3><p>{config.presentation.hours}</p><a href="#menu">Hacer un pedido →</a></article>
         <article><span className="service-icon" aria-hidden="true">⌂</span><span className="eyebrow">CÓMO</span><h3>{menu.restaurant.features.delivery ? 'Te la llevamos' : 'Retirá en el local'}</h3><p>{menu.restaurant.features.delivery && menu.restaurant.features.pickup ? 'Delivery o retiro. Vos elegís.' : menu.restaurant.features.delivery ? 'Delivery disponible.' : 'Lista para retirar.'}</p><a href="#menu">Ver el menú →</a></article>
       </section>
 
       <section className="social-strip">
-        <div><span className="eyebrow">SEGUINOS</span><h2>Lo bueno se comparte.</h2><a href={config.presentation.instagram} target="_blank" rel="noreferrer">@burgerhouse ↗</a></div>
+        <div><span className="eyebrow">LA CASA DEL SMASH</span><h2>Lo bueno se comparte.</h2>{config.presentation.instagram ? <a href={config.presentation.instagram} target="_blank" rel="noreferrer">@burgerhouse ↗</a> : <p>Compartí el antojo. Nosotros ponemos las burgers.</p>}</div>
         <div className="social-tiles" aria-hidden="true"><span>SMASH</span><span><Star/></span><span>CHEESE</span><span>REPEAT</span></div>
       </section>
     </main>
 
     <footer className="site-footer">
-      <div className="site-footer__top"><BrandMark/><p>Smash, queso y cero vueltas.<br/>Hechas al momento en La Plata.</p><nav aria-label="Navegación del pie"><a href="#menu">Menú</a><a href="#nosotros">Nosotros</a><a href="#horarios">Horarios</a><a href={config.presentation.instagram}>Instagram</a></nav></div>
+      <div className="site-footer__top"><BrandMark/><p>Smash, queso y cero vueltas.<br/>Hechas al momento en La Plata.</p><nav aria-label="Navegación del pie"><a href="#menu">Menú</a><a href="#nosotros">Nosotros</a><a href="#horarios">Info</a>{config.presentation.instagram ? <a href={config.presentation.instagram}>Instagram</a> : null}</nav></div>
       <div className="site-footer__bottom"><span>© {new Date().getFullYear()} BURGERHOUSE</span><span>{config.presentation.slogan}</span></div>
     </footer>
 
@@ -214,7 +224,7 @@ export function Storefront({config}: {config: StorefrontConfig}) {
     <div className="sr-only" aria-live="polite">{cartFeedback || (itemCount ? `${itemCount} productos en el carrito` : 'Carrito vacío')}</div>
 
     {selectedProduct ? <ProductDialog product={selectedProduct} onClose={closeProduct} onAdd={add}/> : null}
-    {cartOpen ? <CartDrawer lines={cart} onClose={closeCart} onQuantity={updateQuantity} onRemove={removeLine} onCheckout={() => { setCartOpen(false); setCheckoutError(''); setCheckoutOpen(true); }}/> : null}
+    {cartOpen ? <CartDrawer lines={cart} minimumOrder={menu.ordering.minimumOrder} onClose={closeCart} onQuantity={updateQuantity} onRemove={removeLine} onCheckout={() => { setCartOpen(false); setCheckoutError(''); setCheckoutOpen(true); }}/> : null}
     {checkoutOpen ? <CheckoutDialog menu={menu} lines={cart} busy={busy} error={checkoutError} onBack={() => { setCheckoutOpen(false); setCartOpen(true); }} onClose={closeCheckout} onSubmit={placeOrder}/> : null}
     {completed ? <OrderSuccess order={completed.order} paymentUrl={completed.paymentUrl} onDone={() => { setCompleted(null); document.querySelector('#menu')?.scrollIntoView({behavior: 'smooth'}); }}/> : null}
   </div>;

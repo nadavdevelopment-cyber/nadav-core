@@ -14,7 +14,7 @@ function badgeFor(product: Product) {
 
 function availabilityLabel(product: Product, available: boolean) {
   if (!available) return 'Sin stock';
-  if (product.categoryId === 'cat-drinks') return product.stock === null ? 'Disponible' : `${product.stock} disponibles`;
+  if (/drink|bebida/i.test(product.categoryId)) return product.stock === null ? 'Disponible' : `${product.stock} disponibles`;
   return 'Hecha al momento';
 }
 

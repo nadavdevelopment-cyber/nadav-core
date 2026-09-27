@@ -6,7 +6,7 @@ import {useDialogFocus} from './useDialogFocus';
 
 const money = (value: number) => new Intl.NumberFormat('es-AR', {style: 'currency', currency: 'ARS', maximumFractionDigits: 0}).format(value);
 
-export function CartDrawer({lines, onClose, onQuantity, onRemove, onCheckout}: {lines: CartLine[]; onClose: () => void; onQuantity: (key: string, quantity: number) => void; onRemove: (key: string) => void; onCheckout: () => void}) {
+export function CartDrawer({lines, minimumOrder, onClose, onQuantity, onRemove, onCheckout}: {lines: CartLine[]; minimumOrder: number; onClose: () => void; onQuantity: (key: string, quantity: number) => void; onRemove: (key: string) => void; onCheckout: () => void}) {
   const dialogRef = useDialogFocus<HTMLElement>(onClose);
   const subtotal = lines.reduce((sum, line) => sum + unitPrice(line) * line.quantity, 0);
   const itemCount = lines.reduce((sum, line) => sum + line.quantity, 0);
@@ -31,7 +31,7 @@ export function CartDrawer({lines, onClose, onQuantity, onRemove, onCheckout}: {
               <div className="quantity-control quantity-control--small">
                 <button type="button" onClick={() => onQuantity(line.key, line.quantity - 1)} aria-label={`Restar ${line.product.name}`}>−</button>
                 <output>{line.quantity}</output>
-                <button type="button" onClick={() => onQuantity(line.key, line.quantity + 1)} aria-label={`Sumar ${line.product.name}`}>+</button>
+                <button type="button" onClick={() => onQuantity(line.key, line.quantity + 1)} disabled={line.quantity >= Math.min(99, line.product.stock ?? 99)} aria-label={`Sumar ${line.product.name}`}>+</button>
               </div>
               <button className="text-button" type="button" onClick={() => onRemove(line.key)}>Quitar</button>
             </div>
@@ -39,8 +39,9 @@ export function CartDrawer({lines, onClose, onQuantity, onRemove, onCheckout}: {
         </div>
         <footer className="cart-drawer__footer">
           <div className="cart-total"><span>Subtotal estimado</span><strong>{money(subtotal)}</strong></div>
+          {subtotal < minimumOrder ? <p className="cart-minimum" role="status">Sumá {money(minimumOrder - subtotal)} más para llegar al mínimo de compra.</p> : null}
           <p>El envío y los descuentos se calculan antes de confirmar.</p>
-          <button className="primary-button primary-button--wide cart-checkout-button" type="button" onClick={onCheckout}><span>CONTINUAR</span></button>
+          <button className="primary-button primary-button--wide cart-checkout-button" type="button" onClick={onCheckout} disabled={subtotal < minimumOrder}><span>CONTINUAR AL PAGO</span></button>
           <button className="secondary-button secondary-button--wide" type="button" onClick={onClose}>SEGUIR ELIGIENDO</button>
         </footer>
       </> : <div className="empty-cart">
